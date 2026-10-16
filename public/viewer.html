@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>仓库地图 · RepoHarbor</title><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/viewer.css"><script type="module" src="/viewer.js"></script></head>
+<body>
+  <header class="map-header"><a href="/" class="back">返回仓库</a><div class="map-heading"><h1 id="repo-name">仓库地图</h1><p id="repo-version">正在读取已发布版本</p></div><span id="repo-counts" class="muted"></span></header>
+  <div id="map-message" class="map-message" role="status">正在载入地图…</div>
+  <main id="map-workspace" class="workspace" hidden>
+    <aside class="files-panel"><h2>索引文件</h2><label class="sr-only" for="file-search">搜索文件路径</label><input id="file-search" type="search" placeholder="搜索文件路径…" autocomplete="off"><p id="file-count" class="muted small"></p><div id="file-list" class="file-list"></div></aside>
+    <section class="graph-panel" aria-label="代码关系图">
+      <div class="graph-toolbar"><div class="tabs" role="group" aria-label="地图类型"><button id="mode-files" class="active">文件依赖</button><button id="mode-symbols" disabled>文件内符号</button></div><div class="camera-tools"><button id="zoom-in" aria-label="放大地图">＋</button><button id="zoom-out" aria-label="缩小地图">−</button><button id="reset-camera">适应画面</button><button id="show-overview">全库概览</button></div></div>
+      <p id="graph-caption" class="graph-caption"></p><div id="graph-container"></div><p class="graph-legend"><span class="dot blue"></span>文件 <span class="dot teal"></span>当前选中 <span class="dot violet"></span>符号 · 点击节点查看，滚轮缩放</p>
+      <p id="graph-fallback" class="graph-fallback" hidden>当前浏览器无法绘制关系图。仍可使用文件搜索、依赖列表和源码预览。</p>
+    </section>
+    <aside class="source-panel"><div class="source-heading"><h2 id="file-name">选择一个文件</h2><p id="file-path" class="muted"></p></div><div id="file-details" hidden>
+      <details class="relations" open><summary>依赖关系</summary><div class="relation-columns"><div><h3>依赖这些文件</h3><div id="dependencies"></div></div><div><h3>被这些文件依赖</h3><div id="dependents"></div></div></div><div id="external-deps" class="muted small"></div></details>
+      <details class="symbols"><summary id="symbol-summary">符号</summary><label class="sr-only" for="symbol-search">搜索当前文件的符号</label><input id="symbol-search" type="search" placeholder="搜索当前文件的符号…" autocomplete="off"><div id="symbol-list"></div></details>
+      <div class="source-toolbar"><span id="source-range" class="muted small"></span><button id="copy-source">复制当前页</button></div><div id="source-code" class="source-code" tabindex="0" aria-label="源码预览"></div><div class="source-pagination"><button id="source-prev">上一页</button><button id="source-next">下一页</button></div>
+    </div><p id="source-message" class="muted">从左侧搜索文件，或点击图中的节点。源码与地图固定在顶部所示 commit。</p></aside>
+  </main>
+</body></html>

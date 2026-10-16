@@ -1,0 +1,30 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-fund
+      - run: npm run check
+      - run: npm test
+      - name: Check deployment configuration
+        env:
+          ADMIN_BOOTSTRAP_PASSWORD: ci-fixture-password-only
+        run: |
+          docker compose -f compose.yml config --quiet
+          docker compose -f deploy/compose.yml config --quiet
+          bash -n scripts/*.sh deploy/*.sh
+      - name: Build Linux AMD64 image
+        run: docker build --platform linux/amd64 -t repo-harbor:ci .

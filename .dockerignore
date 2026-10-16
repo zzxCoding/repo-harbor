@@ -1,0 +1,16 @@
+node_modules
+.data
+.test-data
+delivery
+test
+*.tar
+*.gz
+.git
+.github
+.env
+.env.*
+backups
+docs
+scripts
+deploy
+__pycache__

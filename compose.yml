@@ -1,0 +1,29 @@
+name: code-atlas
+services:
+  atlas:
+    image: repo-harbor:0.1.3-amd64
+    build:
+      context: .
+      args:
+        APP_VERSION: 0.1.3
+    platform: linux/amd64
+    pull_policy: never
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=128m"]
+    stop_grace_period: 30s
+    environment:
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:?Run scripts/start.sh first}
+    ports:
+      - "${BIND_ADDRESS:-0.0.0.0}:${PORT:-8093}:8093"
+    volumes:
+      - atlas-data:/data
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+volumes:
+  atlas-data:
+    name: ${DATA_VOLUME:-code-atlas-data}

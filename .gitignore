@@ -1,0 +1,14 @@
+node_modules/
+.data/
+.test-data/
+delivery/
+test/evidence/
+.env
+.env.*
+!.env.example
+backups/
+*.tar
+*.tar.gz
+*.log
+__pycache__/
+.DS_Store
