@@ -1,5 +1,7 @@
 # RepoHarbor · 码港
 
+**简体中文** | [English](README_EN.md)
+
 **代码汇入港，AI 有图可循。**
 
 可自托管的代码地图与 MCP 服务：在网页里连接 GitLab、添加仓库，后台自动同步和建图，

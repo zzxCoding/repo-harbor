@@ -23,7 +23,7 @@ shutil.copytree(root / "docs", dest / "docs")
 (dest / "README.md").write_text((root / "docs/OFFLINE.md").read_text().replace(
     "[运维说明](OPERATIONS.md)", "[运维说明](docs/OPERATIONS.md)"))
 directories = ["src", "public", "scripts", "deploy", "test", "docs", ".github"]
-files = ["package.json", "package-lock.json", "Dockerfile", "compose.yml", ".gitignore", ".dockerignore", ".env.example", "README.md", "DESIGN.md", "THIRD_PARTY_NOTICES.md", "LICENSE", "CONTRIBUTING.md", "SECURITY.md", "CHANGELOG.md"]
+files = ["package.json", "package-lock.json", "Dockerfile", "compose.yml", ".gitignore", ".dockerignore", ".env.example", "README.md", "README_EN.md", "DESIGN.md", "THIRD_PARTY_NOTICES.md", "LICENSE", "CONTRIBUTING.md", "SECURITY.md", "CHANGELOG.md"]
 excluded = {"node_modules", "evidence", "__pycache__", ".git", ".env", "backups", "delivery", ".DS_Store"}
 with tarfile.open(dest / "source.tar.gz", "w:gz") as tar:
     candidates = [root / name for name in files]
