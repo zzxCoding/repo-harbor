@@ -22,7 +22,7 @@ npm start
 ```bash
 npm run check
 npm test
-bash -n scripts/*.sh deploy/*.sh
+for file in scripts/*.sh deploy/*.sh; do bash -n "$file"; done
 ```
 
 测试使用临时目录、自建 GitLab API fixture、实际 Git HTTP clone/fetch 和
