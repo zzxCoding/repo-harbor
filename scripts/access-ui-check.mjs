@@ -13,7 +13,7 @@ const parse = result => JSON.parse(result.content[0].text);
 async function connect(token) { const c = new Client({ name: 'scope-ui-fixture', version: '1' }); await c.connect(new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${token}` } } })); clients.push(c); return c; }
 try {
   await fs.mkdir(evidence, { recursive: true });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } }); const page = await context.newPage(); page.on('pageerror', e => errors.push(e.message));
+  const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 1000 } }); const page = await context.newPage(); page.on('pageerror', e => errors.push(e.message));
   await page.goto(baseUrl); await page.locator('#login-password').fill(process.env.ADMIN_TEST_PASSWORD || 'fixture-admin-password'); await page.getByRole('button', { name: '登录', exact: true }).click();
   await page.waitForFunction(() => document.querySelectorAll('#repo-rows tr').length === 2 && [...document.querySelectorAll('#repo-rows .pill')].every(p => p.classList.contains('ready') || p.classList.contains('error')), { timeout: 45000 });
   const state = await (await context.request.get(`${baseUrl}/api/state`)).json();
@@ -68,6 +68,6 @@ try {
   assert.equal(await page.locator('#access-token-list').textContent(), ''); assert.equal(await page.locator('#access-token-repositories').textContent(), ''); assert.equal(await page.locator('#mcp-token').inputValue(), '点击查看令牌'); assert.equal(await page.locator('#access-token-selected-scope').textContent(), '');
   checks.push('Logout clears secrets, selected scopes, names and repository choices from the DOM');
   assert.deepEqual(errors, []);
-  const report = { version: '0.2.0', environment: process.env.ACCESS_TEST_ENV || 'host service', checks, javascriptErrors: errors, viewport: ['1440x1000','390x844'], data: 'two synthetic repositories, native Codegraph; real MCP calls use credentials configured through the page' };
+  const report = { version: '0.2.1', environment: process.env.ACCESS_TEST_ENV || 'host service', checks, javascriptErrors: errors, viewport: ['1440x1000','390x844'], data: 'two synthetic repositories, native Codegraph; real MCP calls use credentials configured through the page' };
   await fs.writeFile(new URL(`${prefix}-ui-check.json`, evidence), JSON.stringify(report,null,2)); console.log(JSON.stringify(report));
 } finally { await Promise.allSettled(clients.map(c => c.close())); await browser.close(); }

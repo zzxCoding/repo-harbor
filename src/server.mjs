@@ -14,7 +14,7 @@ import { Viewer } from './viewer.mjs';
 import { createRequire } from 'node:module';
 
 const publicDir = fileURLToPath(new URL('../public/', import.meta.url));
-const staticFiles = { '/': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/style.css': ['style.css', 'text/css'], '/favicon.svg': ['favicon.svg', 'image/svg+xml'] };
+const staticFiles = { '/': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/i18n.js': ['i18n.js', 'text/javascript'], '/style.css': ['style.css', 'text/css'], '/favicon.svg': ['favicon.svg', 'image/svg+xml'] };
 const require = createRequire(import.meta.url);
 const vendorDir = path.join(path.dirname(path.dirname(require.resolve('@lzehrung/codegraph'))), 'src/viewer/vendor');
 const mapAssets = { '/map': [path.join(publicDir, 'viewer.html'), 'text/html'], '/viewer.js': [path.join(publicDir, 'viewer.js'), 'text/javascript'], '/viewer.css': [path.join(publicDir, 'viewer.css'), 'text/css'] };
@@ -47,7 +47,7 @@ export async function startService(options = {}) {
     response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'");
     try {
       const url = new URL(request.url, 'http://service.local'); const route = url.pathname; const method = request.method;
-      if (route === '/healthz' && method === 'GET') return json(response, 200, { status: stopping ? 'stopping' : 'ok', version: '0.2.0' });
+      if (route === '/healthz' && method === 'GET') return json(response, 200, { status: stopping ? 'stopping' : 'ok', version: '0.2.1' });
       // Browser requests must originate from the same visible host, including behind a Host-preserving TLS proxy.
       if (request.headers.origin) {
         let origin;

@@ -78,7 +78,7 @@ docker run --rm --platform linux/amd64 --user 0 --network none --read-only \
   --entrypoint tar \
   -v repo-harbor-restored-data:/data \
   -v "$PWD/backups":/backup:ro \
-  repo-harbor:0.2.0-amd64 \
+  repo-harbor:0.2.1-amd64 \
   xzf /backup/替换为实际备份文件名.tar.gz -C /data
 ```
 

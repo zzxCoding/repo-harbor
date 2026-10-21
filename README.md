@@ -13,7 +13,7 @@
 
 ![仓库控制台](docs/screenshots/repositories.png)
 
-> 当前版本 **0.2.0**，支持 **Linux x86_64 / AMD64** Docker 部署，页面为简体中文。
+> 当前版本 **0.2.1**，支持 **Linux x86_64 / AMD64** Docker 部署，页面支持简体中文与 English 即时切换。
 > 建立地图不需要 LLM、embedding、Neo4j 或其他外部数据库。
 > GitHub 仓库提供源码和打包脚本；下面的步骤会在本机构建镜像。
 
@@ -66,7 +66,7 @@ cd repo-harbor
 ./scripts/start.sh
 ```
 
-脚本构建 `repo-harbor:0.2.0-amd64`、生成首次管理密码、启动容器并等待健康检查。
+脚本构建 `repo-harbor:0.2.1-amd64`、生成首次管理密码、启动容器并等待健康检查。
 打开 **`http://服务器IP:8093`**，使用命令输出中的管理密码登录。
 密码也保存在部署目录 `.env`，文件权限为 `0600`。
 
@@ -88,12 +88,12 @@ PORT=18093 BIND_ADDRESS=127.0.0.1 ./scripts/start.sh
 ./scripts/build-offline.sh
 ```
 
-将生成的 `delivery/repo-harbor-0.2.0-linux-amd64.tar.gz` 和对应 `.sha256` 上传服务器：
+将生成的 `delivery/repo-harbor-0.2.1-linux-amd64.tar.gz` 和对应 `.sha256` 上传服务器：
 
 ```bash
-sha256sum -c repo-harbor-0.2.0-linux-amd64.tar.gz.sha256
-tar -xzf repo-harbor-0.2.0-linux-amd64.tar.gz
-cd repo-harbor-0.2.0-linux-amd64
+sha256sum -c repo-harbor-0.2.1-linux-amd64.tar.gz.sha256
+tar -xzf repo-harbor-0.2.1-linux-amd64.tar.gz
+cd repo-harbor-0.2.1-linux-amd64
 ./deploy.sh
 ```
 
@@ -103,6 +103,10 @@ ARM 构建机需具备 AMD64 仿真能力。详细步骤见 [离线部署](docs/
 ## 页面配置
 
 ### 1. 添加代码源连接
+
+登录页、控制台顶部和代码地图页均可选择语言。首次按浏览器语言选择，手动选择会保存在
+当前浏览器，同源标签页同步更新。切换不刷新页面，不改变已填表单、令牌权限或地图版本。
+仓库名称、文件路径、分支、源码和外部 Git / 解析器的原始诊断内容保持原文。
 
 打开 **代码源 → 添加连接**，填写连接名称，选择平台并配置服务首页地址。
 同一个实例可以同时连接 GitLab、GitHub 和其他 Git 服务，各组凭据独立加密保存。

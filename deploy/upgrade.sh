@@ -3,11 +3,11 @@ set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 old_dir=${1:-}
 if [[ -z "$old_dir" ]]; then
-  for candidate in ../repo-harbor-0.1.3-linux-amd64 ../code-atlas-0.1.3-linux-amd64 ../code-atlas-0.1.2-linux-amd64 ../code-atlas-0.1.1-linux-amd64 ../code-atlas-0.1.0-linux-amd64; do
+  for candidate in ../repo-harbor-0.2.0-linux-amd64 ../repo-harbor-0.1.3-linux-amd64 ../code-atlas-0.1.3-linux-amd64 ../code-atlas-0.1.2-linux-amd64 ../code-atlas-0.1.1-linux-amd64 ../code-atlas-0.1.0-linux-amd64; do
     if [[ -f "$candidate/.env" ]]; then old_dir=$candidate; break; fi
   done
 fi
-[[ -n "$old_dir" && -f "$old_dir/.env" ]] || { echo '请把旧部署目录作为参数传入，例如 ./upgrade.sh ../repo-harbor-0.1.3-linux-amd64'; exit 1; }
+[[ -n "$old_dir" && -f "$old_dir/.env" ]] || { echo '请把旧部署目录作为参数传入，例如 ./upgrade.sh ../repo-harbor-0.2.0-linux-amd64'; exit 1; }
 if [[ ! -f .env ]]; then
   umask 077
   cp -- "$old_dir/.env" .env

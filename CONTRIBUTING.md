@@ -44,6 +44,11 @@ node scripts/access-ui-check.mjs
 `test/evidence/`；README 截图使用合成仓库，保存在 `docs/screenshots/`。
 长时间建图进度截图包含模拟计数，不作为性能测量结果。
 
+双语检查可单独运行 `node scripts/i18n-ui-check.mjs`，会自建临时仓库与服务并自动关闭。
+新增界面文案时在 `public/i18n.js` 维护英文翻译；动态文本使用 `writeText` 绑定，带参数的
+文案使用 `tr` 标签模板。不要对仓库名称、文件路径或源码内容做翻译。`npm test` 会检查
+登录页和地图静态文案的翻译覆盖及参数完整性。
+
 ## 提交前
 
 - 描述实际问题、修改后行为和运行过的检查；区分本地验证与真实部署。

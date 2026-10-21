@@ -1,11 +1,11 @@
 name: code-atlas
 services:
   atlas:
-    image: repo-harbor:0.2.0-amd64
+    image: repo-harbor:0.2.1-amd64
     build:
       context: .
       args:
-        APP_VERSION: 0.2.0
+        APP_VERSION: 0.2.1
     platform: linux/amd64
     pull_policy: never
     init: true

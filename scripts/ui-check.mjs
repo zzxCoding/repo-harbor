@@ -8,7 +8,7 @@ const evidence = new URL('../test/evidence/', import.meta.url); await fs.mkdir(e
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const errors = []; const checks = [];
 try {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const page = await browser.newPage({ locale: 'zh-CN', viewport: { width: 1440, height: 1000 } });
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(info.baseUrl); await page.locator('#login-password').fill('fixture-admin-password'); await page.getByRole('button', { name: '登录', exact: true }).click();
   await page.locator('#repo-rows .pill.ready').first().waitFor({ timeout: 45000 }); checks.push('Login and actual published repository visible');
@@ -59,6 +59,6 @@ try {
   if (await page.locator('#gitlab-token').inputValue()) throw new Error('GitLab credential retained after logout');
   checks.push('Logout removes credential fields and repository data from DOM');
   if (errors.length) throw new Error(JSON.stringify(errors));
-  const report = { version: '0.2.0', checks, javascriptErrors: errors, data: 'synthetic repository; long-build display uses simulated counters, backend progress tested against real Codegraph separately', viewport: ['1440x1000', '390x844'] };
+  const report = { version: '0.2.1', checks, javascriptErrors: errors, data: 'synthetic repository; long-build display uses simulated counters, backend progress tested against real Codegraph separately', viewport: ['1440x1000', '390x844'] };
   await fs.writeFile(new URL('ui-check.json', evidence), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report));
 } finally { await browser.close(); }

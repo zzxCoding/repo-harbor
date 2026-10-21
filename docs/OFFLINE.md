@@ -15,10 +15,10 @@
 也可以选择一个尚不存在的输出目录：
 
 ```bash
-./scripts/build-offline.sh /tmp/repo-harbor-0.2.0-linux-amd64
+./scripts/build-offline.sh /tmp/repo-harbor-0.2.1-linux-amd64
 ```
 
-脚本构建 `repo-harbor:0.2.0-amd64`，导出 Docker 归档，检查归档层、平台和镜像身份，
+脚本构建 `repo-harbor:0.2.1-amd64`，导出 Docker 归档，检查归档层、平台和镜像身份，
 生成安装包及外部 `.sha256`。已有输出目录不会覆盖；构建失败后可选择新目录重试。
 打包步骤不依赖父级仓库或本机历史测试日志。
 
@@ -47,9 +47,9 @@ THIRD_PARTY_NOTICES.md 上游声明
 将 `.tar.gz` 和同名 `.sha256` 放在服务器同一目录：
 
 ```bash
-sha256sum -c repo-harbor-0.2.0-linux-amd64.tar.gz.sha256
-tar -xzf repo-harbor-0.2.0-linux-amd64.tar.gz
-cd repo-harbor-0.2.0-linux-amd64
+sha256sum -c repo-harbor-0.2.1-linux-amd64.tar.gz.sha256
+tar -xzf repo-harbor-0.2.1-linux-amd64.tar.gz
+cd repo-harbor-0.2.1-linux-amd64
 ./deploy.sh
 ```
 
@@ -62,19 +62,22 @@ cd repo-harbor-0.2.0-linux-amd64
 到 AI 接入页创建令牌并选择允许的仓库。服务地址为 `http://服务器IP:8093/mcp`。
 管理密码与代码源凭据不提供给 AI 客户端。
 
-## 从 0.1.3 或旧 Code Atlas 离线版本升级
+## 从 0.2.0、0.1.3 或旧 Code Atlas 离线版本升级
 
 保留旧部署目录与数据卷，把新包解压到其同级目录，旧服务应处于运行状态：
 
 ```bash
-cd repo-harbor-0.2.0-linux-amd64
-./upgrade.sh ../repo-harbor-0.1.3-linux-amd64
+cd repo-harbor-0.2.1-linux-amd64
+./upgrade.sh ../repo-harbor-0.2.0-linux-amd64
 ```
 
 将参数替换为实际旧目录（也支持旧 code-atlas-0.1.x-linux-amd64 目录）。升级脚本复制原
 `.env`，校验新镜像，暂时停止旧应用并备份原数据卷，再用新镜像重建。
 备份保存在新目录 `backups/`，不会删除原卷。为兼容旧部署，Compose 项目名
 `code-atlas`、服务名 `atlas` 和默认卷名 `code-atlas-data` 保留。
+
+从 0.2.0 升级时仍使用 version=3，无需新的数据迁移。语言偏好保存在浏览器，
+可在登录页、控制台和地图页切换。
 
 旧 version=1 / version=2 配置迁移为 version=3。原 GitLab 连接自动成为独立代码源，
 仓库 ID、源码快照、发布 commit、管理密码、AI 令牌值和权限清单保留。新版页面可继续

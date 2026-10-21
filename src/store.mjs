@@ -86,7 +86,7 @@ export class Store {
   }
   publicState() {
     const connections = this.state.connections.map(c => this.publicConnection(c));
-    return { version: '0.2.0', codegraphVersion: '3.0.0', intervalMinutes: this.state.intervalMinutes, buildTimeoutMinutes: this.state.buildTimeoutMinutes ?? DEFAULT_BUILD_TIMEOUT_MINUTES, accessTokens: this.state.accessTokens.map(tokenMetadata), connections,
+    return { version: '0.2.1', codegraphVersion: '3.0.0', intervalMinutes: this.state.intervalMinutes, buildTimeoutMinutes: this.state.buildTimeoutMinutes ?? DEFAULT_BUILD_TIMEOUT_MINUTES, accessTokens: this.state.accessTokens.map(tokenMetadata), connections,
       connection: connections.length === 1 ? connections[0] : null,
       repositories: this.state.repositories.map(r => ({ ...r, source: sourceSummary(this.state.connections.find(c => c.id === r.connectionId)), events: r.events?.slice(-40) || [] })) };
   }

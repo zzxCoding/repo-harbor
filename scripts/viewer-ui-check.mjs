@@ -11,7 +11,7 @@ await fs.mkdir(evidence, { recursive: true });
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-swiftshader'] });
 const errors = [], externalRequests = [], checks = [];
 try {
-  const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
+  const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1600, height: 1000 } });
   context.on('page', page => page.on('pageerror', error => errors.push(error.message)));
   context.on('request', request => { if (new URL(request.url()).origin !== new URL(info.baseUrl).origin) externalRequests.push(request.url()); });
   const page = await context.newPage();
@@ -81,7 +81,7 @@ try {
   checks.push('Logout denies map/source and removes private source, metadata, files and canvas from the open viewer');
   assert.deepEqual(errors, []); assert.deepEqual(externalRequests, []);
   checks.push('No JavaScript errors or external network requests; all graph libraries load locally');
-  const report = { version: '0.2.0', environment: process.env.VIEWER_TEST_ENV || 'host service', checks, javascriptErrors: errors, externalRequests, pinnedCommit: commit, viewport: ['1600x1000', '390x844'], data: 'synthetic Git HTTP repository; native Codegraph graph, symbol and source data' };
+  const report = { version: '0.2.1', environment: process.env.VIEWER_TEST_ENV || 'host service', checks, javascriptErrors: errors, externalRequests, pinnedCommit: commit, viewport: ['1600x1000', '390x844'], data: 'synthetic Git HTTP repository; native Codegraph graph, symbol and source data' };
   await fs.writeFile(new URL(prefix === 'map' ? 'viewer-ui-check.json' : `${prefix}-ui-check.json`, evidence), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report));
 } finally { await browser.close(); }

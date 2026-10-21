@@ -12,11 +12,11 @@ calls, and read source code from the same commit.
 [MCP integration](#mcp-integration) · [Operations](#operations) · [FAQ](#faq) ·
 [Security and limitations](#security-and-limitations)
 
-![Repository dashboard](docs/screenshots/repositories.png)
+![Repository dashboard](docs/screenshots/repositories-en.png)
 
-> Current version: **0.2.0**. Docker deployments target **Linux x86_64 / AMD64**.
-> The web interface is currently in **Simplified Chinese**; English translations of
-> relevant UI labels appear below. Building maps requires no LLM, embeddings,
+> Current version: **0.2.1**. Docker deployments target **Linux x86_64 / AMD64**.
+> The web interface supports **English and Simplified Chinese**, with instant language switching.
+> Building maps requires no LLM, embeddings,
 > Neo4j, or external database. This repository provides source code and packaging
 > scripts; the instructions below build the image locally.
 
@@ -76,7 +76,7 @@ cd repo-harbor
 ./scripts/start.sh
 ```
 
-The script builds `repo-harbor:0.2.0-amd64`, generates the initial administrator
+The script builds `repo-harbor:0.2.1-amd64`, generates the initial administrator
 password, starts the container, and waits for its health check.
 Open **`http://your-server:8093`** and sign in with the password printed by the
 script. Replace `your-server` with your server's reachable IP address or hostname.
@@ -104,13 +104,13 @@ image, source code, checksums, and deployment scripts:
 ./scripts/build-offline.sh
 ```
 
-Upload `delivery/repo-harbor-0.2.0-linux-amd64.tar.gz` and its `.sha256` file to your
+Upload `delivery/repo-harbor-0.2.1-linux-amd64.tar.gz` and its `.sha256` file to your
 server, then run:
 
 ```bash
-sha256sum -c repo-harbor-0.2.0-linux-amd64.tar.gz.sha256
-tar -xzf repo-harbor-0.2.0-linux-amd64.tar.gz
-cd repo-harbor-0.2.0-linux-amd64
+sha256sum -c repo-harbor-0.2.1-linux-amd64.tar.gz.sha256
+tar -xzf repo-harbor-0.2.1-linux-amd64.tar.gz
+cd repo-harbor-0.2.1-linux-amd64
 ./deploy.sh
 ```
 
@@ -123,7 +123,12 @@ Simplified Chinese.
 
 ### 1. Add a code source connection
 
-Open **Code Sources → Add Connection (代码源 → 添加连接)**. Give the connection a
+Choose a language on the sign-in page, console header or map page. The first visit uses your
+browser language; a manual choice is saved in that browser and shared across same-origin tabs.
+Switching keeps forms, token grants and map versions intact. Repository names, paths, branches,
+source code and original diagnostics from Git or parsers stay verbatim.
+
+Open **Sources → Add connection (代码源 → 添加连接)**. Give the connection a
 name, choose the platform, and enter its base URL. A single instance can connect
 to multiple GitLab, GitHub, and other Git servers with separately encrypted credentials.
 
@@ -178,15 +183,15 @@ dependencies, analyzing symbols, and validation.
 **Reaching 100% in the file-indexing stage does not mean the map is published:
 symbol analysis and validation must still finish.**
 
-Under **Administration Settings (管理设置)**, you can change the sync interval
+Under **Settings (管理设置)**, you can change the sync interval
 (1–1440 minutes, default 15) and the time limit for a complete build
 (5–360 minutes, default 120). Initial build time depends on repository size,
 language, and CPU resources. No AI connection is required. Logs report progress
 throughout the build.
 
-After publication, click **View Map (查看地图)**:
+After publication, click **Open map (查看地图)**:
 
-![Browser code map](docs/screenshots/code-map.png)
+![Browser code map](docs/screenshots/code-map-en.png)
 
 The viewer uses the same port and administrator login as the dashboard. Search
 files on the left, explore file dependencies or symbols within the current file
@@ -195,7 +200,7 @@ source line. Screenshots use synthetic test repositories.
 
 ### 4. Assign repository access to AI clients
 
-Open **AI Integration → Create Read Token (AI 接入 → 创建读取令牌)**. Give the token
+Open **AI access → Create read token (AI 接入 → 创建读取令牌)**. Give the token
 a name and select the repositories it may access. For example, an order assistant
 can access only the order repository, while a shared-library assistant can access
 only shared libraries.
@@ -355,7 +360,7 @@ details to view a newer version as well.
 
 ```text
 src/                 Sync, snapshots, Codegraph reader, MCP, auth, and viewer APIs
-public/              Chinese administrator interface and browser code viewer
+public/              Bilingual administrator interface and browser code viewer
 deploy/              Offline image loading, deployment, backup, and upgrade scripts
 scripts/             Source startup, offline packaging, index and browser checks
 test/                Synthetic GitLab/Git fixtures and integration tests

@@ -1,7 +1,7 @@
 name: code-atlas
 services:
   atlas:
-    image: repo-harbor:0.2.0-amd64
+    image: repo-harbor:0.2.1-amd64
     platform: linux/amd64
     pull_policy: never
     init: true

@@ -10,7 +10,7 @@ assert.equal(sources.length, 3, 'Start MULTI_SOURCE=1 node scripts/ui-fixture.mj
 const evidence = new URL('../test/evidence/', import.meta.url); await fs.mkdir(evidence, { recursive: true });
 const browser = await chromium.launch({ channel: 'chrome', headless: true }); const errors = [], checks = []; let mcp;
 try {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } }); const page = await context.newPage();
+  const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 1000 } }); const page = await context.newPage();
   page.on('pageerror', e => errors.push(e.message));
   await page.goto(baseUrl); await page.locator('#login-password').fill('fixture-admin-password'); await page.getByRole('button', { name: '登录', exact: true }).click();
   await page.locator('#repo-rows .pill.ready').first().waitFor({ timeout: 45000 });
@@ -76,6 +76,6 @@ try {
   assert.equal(await page.locator('#connection-list').textContent(), ''); assert.equal(await page.locator('#gitlab-token').inputValue(), ''); assert.equal(await page.locator('#repo-connection option').count(), 0);
   checks.push('Logout clears connection names, credentials and source choices from the DOM');
   assert.deepEqual(errors, []);
-  const report = { version: '0.2.0', checks, javascriptErrors: errors, data: 'three synthetic Git HTTP hosting fixtures, native Codegraph maps, real scoped MCP' };
+  const report = { version: '0.2.1', checks, javascriptErrors: errors, data: 'three synthetic Git HTTP hosting fixtures, native Codegraph maps, real scoped MCP' };
   await fs.writeFile(new URL('sources-ui-check.json', evidence), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report));
 } finally { await mcp?.close(); await browser.close(); }
