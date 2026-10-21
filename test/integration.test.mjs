@@ -39,6 +39,12 @@ test('real authenticated Git sync, native map/source, immutable MCP sessions and
   assert.equal(configured.status, 200); const id = configured.body.added[0]; assert(id);
   assert.equal((await api('branches?projectId=7')).body.branches.length, 2);
   const repo = () => service.store.state.repositories.find(r => r.id === id);
+  async function syncNow() {
+    // Publication precedes worker cleanup; an active task intentionally deduplicates requests.
+    await wait(() => service.sync.runningId !== id);
+    const response = await api('sync', 'POST', { id });
+    assert.equal(response.status, 202); assert.equal(response.body.queued, 1);
+  }
   await wait(() => repo().status === 'ready' || repo().status === 'error'); assert.equal(repo().status, 'ready', repo().lastError);
   assert.equal(repo().build.timeoutMinutes, 45); assert.equal(repo().build.phase, 'ready');
   assert(repo().build.timings.baseMs >= 0 && repo().build.timings.symbolsMs >= 0);
@@ -76,7 +82,7 @@ test('real authenticated Git sync, native map/source, immutable MCP sessions and
   assert.equal((await old.callTool({ name: 'get_file', arguments: { repo: id, file: '../../../../state.json', allowSensitive: true } })).isError, true);
   assert.equal((await old.callTool({ name: 'get_file', arguments: { repo: id, file: 'state-link.json', allowSensitive: true } })).isError, true);
   assert.equal((await old.callTool({ name: 'artifact_build', arguments: {} })).isError, true);
-  const commit2 = await fixture.update(2); await api('sync', 'POST', { id });
+  const commit2 = await fixture.update(2); await syncNow();
   await wait(() => repo().current.commit === commit2 || repo().status === 'error'); assert.equal(repo().current.commit, commit2, repo().lastError);
   assert.equal((await api(`repositories/${id}/map?commit=${commit1}`)).status, 409);
   const webPinned = await api(sourcePath); assert.equal(webPinned.body.repository.commit, commit1); assert(webPinned.body.lines.join('\n').includes('fixture-v1'));
@@ -84,7 +90,7 @@ test('real authenticated Git sync, native map/source, immutable MCP sessions and
   assert.equal(web2.body.repository.commit, commit2); assert(web2.body.lines.join('\n').includes('fixture-v2'));
   const pinned = parse(await old.callTool({ name: 'get_file', arguments: { repo: id, file: 'src/pricing.ts' } })); assert(pinned.text.includes('fixture-v1')); assert.equal(pinned.repository.commit, commit1);
   const fresh = await connect(token); const v2 = parse(await fresh.callTool({ name: 'get_file', arguments: { repo: id, file: 'src/pricing.ts' } })); assert(v2.text.includes('fixture-v2')); assert.equal(v2.repository.commit, commit2);
-  fixture.rejectClones(true); await api('sync', 'POST', { id }); await wait(() => repo().status === 'error'); assert.equal(repo().current.commit, commit2); assert(!repo().lastError.includes(fixture.token));
+  fixture.rejectClones(true); await syncNow(); await wait(() => repo().status === 'error'); assert.equal(repo().current.commit, commit2); assert(!repo().lastError.includes(fixture.token));
   assert(parse(await fresh.callTool({ name: 'get_file', arguments: { repo: id, file: 'src/pricing.ts' } })).text.includes('fixture-v2'));
   fixture.rejectClones(false); await api(`repositories/${id}`, 'PATCH', { enabled: false });
   assert.equal((await fresh.callTool({ name: 'get_file', arguments: { repo: id, file: 'src/pricing.ts' } })).isError, true);
