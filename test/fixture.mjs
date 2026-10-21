@@ -10,7 +10,7 @@ export async function gitlabFixture({ multiProject = false, provider = 'gitlab',
   const source = path.join(root, 'source'); const remoteRoot = path.join(root, 'remotes'); const remote = path.join(remoteRoot, 'team/service.git');
   await fs.mkdir(path.join(source, 'src'), { recursive: true }); await fs.mkdir(path.dirname(remote), { recursive: true });
   const git = args => command('git', ['-c', 'user.name=RepoHarbor Fixture', '-c', 'user.email=fixture@example.invalid', '-c', 'core.hooksPath=/dev/null', ...args], { cwd: source });
-  await git(['init', '-b', 'main']); await command('git', ['init', '--bare', remote]);
+  await git(['init', '-b', 'main']); await command('git', ['init', '--bare', '-b', 'main', remote]);
   await fs.writeFile(path.join(source, 'package.json'), '{"name":"fixture","type":"module"}\n');
   await fs.writeFile(path.join(source, 'README.md'), '# Fixture\n');
   await fs.writeFile(path.join(source, 'src/source.ts'), `export const sourceProvider = "${provider}";\n`);
