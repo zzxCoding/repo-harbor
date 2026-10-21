@@ -26,4 +26,4 @@ if [[ "$ready" != true ]]; then echo '健康检查尚未通过，请运行 docke
 port=$(sed -n 's/^PORT=//p' .env)
 echo "页面：http://服务器IP:${port:-8093}"
 if [[ "$created" == true ]]; then printf '首次管理密码：%s\n' "$password"; else echo '使用现有管理密码；如已在页面修改，请使用修改后的密码。'; fi
-echo '登录后在页面保存 GitLab 连接、添加仓库。MCP 地址和 AI 读取令牌在 AI 接入页。'
+echo '登录后在代码源页添加连接，再选择仓库。MCP 地址和 AI 读取令牌在 AI 接入页。'

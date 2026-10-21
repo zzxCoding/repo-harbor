@@ -107,7 +107,7 @@ async function loadMap() {
   const value = await api(`repositories/${encodeURIComponent(repoId)}/map?${new URLSearchParams(requestedCommit ? { commit: requestedCommit } : {})}`);
   if (value.preparing) { message(value.message); setTimeout(() => void loadMap().catch(error => message(error.message, true)), 3000); return; }
   data = value.graph; viewId = value.viewId;
-  $('repo-name').textContent = value.repository.name;
+  $('repo-name').textContent = `${value.repository.source?.name ? value.repository.source.name + ' / ' : ''}${value.repository.name}`;
   $('repo-version').textContent = `${value.repository.branch} @ ${value.repository.commit} · 发布于 ${new Date(value.repository.indexedAt).toLocaleString('zh-CN', { hour12: false })}`; $('repo-version').dataset.commit = value.repository.commit;
   $('repo-counts').textContent = `${data.files.length} 个索引文件 · ${data.edges.length} 条文件依赖`;
   out = data.files.map(() => []); incoming = data.files.map(() => []); degrees = data.files.map(() => 0);

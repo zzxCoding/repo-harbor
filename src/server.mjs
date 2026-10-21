@@ -7,7 +7,7 @@ import { Store } from './store.mjs';
 import { EnginePool } from './engine.mjs';
 import { Synchronizer, addEvent } from './sync.mjs';
 import { McpGateway } from './mcp.mjs';
-import { connectionInput, apiGet, projects, project, branches } from './gitlab.mjs';
+import { sourceInput, testSource, resolveRepository, sourceProjects, sourceBranches } from './sources.mjs';
 import { passwordMatches, passwordHash, randomToken, cleanError } from './security.mjs';
 import { buildTimeoutMinutes } from './build-progress.mjs';
 import { Viewer } from './viewer.mjs';
@@ -47,7 +47,7 @@ export async function startService(options = {}) {
     response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'");
     try {
       const url = new URL(request.url, 'http://service.local'); const route = url.pathname; const method = request.method;
-      if (route === '/healthz' && method === 'GET') return json(response, 200, { status: stopping ? 'stopping' : 'ok', version: '0.1.3' });
+      if (route === '/healthz' && method === 'GET') return json(response, 200, { status: stopping ? 'stopping' : 'ok', version: '0.2.0' });
       // Browser requests must originate from the same visible host, including behind a Host-preserving TLS proxy.
       if (request.headers.origin) {
         let origin;
@@ -100,38 +100,70 @@ export async function startService(options = {}) {
       if (fileMatch && method === 'GET') {
         return json(response, 200, await viewer.file(admin.sid, fileMatch[1], url.searchParams.get('file'), Number(url.searchParams.get('offset') || 1), Number(url.searchParams.get('limit') || 200)));
       }
-      if (route === '/api/connection/test' && method === 'POST') {
-        const c = connectionInput(body, store.connection()); const user = (await apiGet(c, 'user')).data;
-        if (c.group) await apiGet(c, `groups/${encodeURIComponent(c.group)}`, { with_projects: false });
-        return json(response, 200, { ok: true, username: user.username || 'GitLab 用户' });
+      const chooseConnection = id => {
+        const c = store.connection(id);
+        if (!c) throw new Error(id ? '代码源连接不存在' : '请选择代码源连接；存在多个连接时必须传入 connectionId');
+        return c;
+      };
+      const connectionRoute = /^\/api\/connections\/([a-f0-9-]{36})$/.exec(route);
+      if (route === '/api/connections' && method === 'GET') return json(response, 200, { connections: store.state.connections.map(c => store.publicConnection(c)) });
+      if ((route === '/api/connections/test' || route === '/api/connection/test') && method === 'POST') {
+        const existing = body.id ? chooseConnection(body.id) : route === '/api/connection/test' ? store.connection() : null;
+        const c = sourceInput(body, existing);
+        return json(response, 200, { ok: true, ...await testSource(c) });
       }
-      if (route === '/api/connection' && method === 'PUT') {
-        const c = connectionInput(body, store.connection());
-        if (store.state.connection?.baseUrl !== c.baseUrl && store.state.repositories.length) throw new Error('更换 GitLab 服务前，请先移除现有仓库配置；已有快照不会删除');
-        await apiGet(c, 'user'); if (c.group) await apiGet(c, `groups/${encodeURIComponent(c.group)}`, { with_projects: false });
-        store.state.connection = { ...c, token: store.seal(c.token) }; await store.save();
-        return json(response, 200, { ok: true });
+      if ((route === '/api/connections' && method === 'POST') || (connectionRoute && method === 'PATCH') || (route === '/api/connection' && method === 'PUT')) {
+        const legacy = route === '/api/connection';
+        if (legacy && (store.state.connections.length > 1 || (store.connection() && store.connection().type !== 'gitlab'))) throw new Error('请使用多连接接口并指定连接 id');
+        const existing = connectionRoute ? chooseConnection(connectionRoute[1]) : legacy ? store.connection() : null;
+        if (!existing && store.state.connections.length >= 32) throw new Error('最多配置 32 个代码源连接');
+        const c = sourceInput(legacy ? { ...body, type: 'gitlab' } : body, existing);
+        const attached = () => existing && store.state.repositories.some(r => r.connectionId === existing.id);
+        const changedIdentity = existing && (existing.type !== c.type || existing.baseUrl !== c.baseUrl);
+        if (changedIdentity && attached()) throw new Error('请先移除该连接的仓库配置，再更换平台或地址；快照会保留');
+        await testSource(c);
+        if (existing && store.connection(existing.id)?.revision !== existing.revision) throw new Error('连接已被修改，请刷新后重试');
+        if (changedIdentity && attached()) throw new Error('该连接已有仓库，请刷新后重试');
+        if (!existing && store.state.connections.length >= 32) throw new Error('最多配置 32 个代码源连接');
+        const saved = { ...c, id: existing?.id || crypto.randomUUID(), token: store.seal(c.token), revision: (existing?.revision || 0) + 1 };
+        if (existing) store.state.connections = store.state.connections.map(item => item.id === existing.id ? saved : item);
+        else store.state.connections.push(saved);
+        for (const repo of store.state.repositories.filter(r => r.connectionId === saved.id)) {
+          if (sync.runningId === repo.id) repo.reschedule = true;
+          else if (repo.enabled) repo.nextRun = new Date().toISOString();
+        }
+        await store.save();
+        return json(response, existing || legacy ? 200 : 201, { ok: true, connection: store.publicConnection(saved) });
       }
-      const c = store.connection();
+      if (connectionRoute && method === 'DELETE') {
+        const c = chooseConnection(connectionRoute[1]);
+        if (store.state.repositories.some(r => r.connectionId === c.id)) throw new Error('请先移除该连接的仓库配置；已有快照不会删除');
+        store.state.connections = store.state.connections.filter(item => item.id !== c.id);
+        await store.save(); return json(response, 200, { ok: true });
+      }
       if (route === '/api/projects' && method === 'GET') {
-        if (!c) throw new Error('请先保存 GitLab 连接');
-        return json(response, 200, { projects: await projects(c, (url.searchParams.get('search') || '').slice(0, 100)) });
+        return json(response, 200, { projects: await sourceProjects(chooseConnection(url.searchParams.get('connectionId')), (url.searchParams.get('search') || '').slice(0, 100)) });
       }
       if (route === '/api/branches' && method === 'GET') {
-        if (!c) throw new Error('请先保存 GitLab 连接');
-        const id = url.searchParams.get('projectId'); if (!/^\d+$/.test(id || '')) throw new Error('项目 ID 格式错误');
-        return json(response, 200, { branches: await branches(c, id) });
+        const repo = store.state.repositories.find(r => r.id === url.searchParams.get('repoId'));
+        if (repo) return json(response, 200, { branches: await sourceBranches(chooseConnection(repo.connectionId), repo) });
+        if (url.searchParams.has('repoId')) return json(response, 404, { error: '仓库不存在' });
+        const c = chooseConnection(url.searchParams.get('connectionId')); const projectId = url.searchParams.get('projectId');
+        if (c.type !== 'gitlab' || !/^\d+$/.test(projectId || '')) throw new Error('请传入仓库 repoId 查询分支');
+        return json(response, 200, { branches: await sourceBranches(c, { projectId }) });
       }
       if (route === '/api/repositories' && method === 'POST') {
-        if (!c) throw new Error('请先保存 GitLab 连接');
+        const c = chooseConnection(body.connectionId);
         const choices = body.projectPath ? [String(body.projectPath).trim()] : [...new Set(body.projectIds || [])];
-        if (!choices.length || choices.length > 50 || choices.some(x => !['string', 'number'].includes(typeof x) || String(x).length > 300)) throw new Error('每次选择 1–50 个 GitLab 项目');
+        if (!choices.length || choices.length > 50 || choices.some(x => !['string', 'number'].includes(typeof x) || String(x).length > 2000)) throw new Error('每次填写 1–50 个仓库');
         const selected = [];
-        for (const choice of choices) selected.push(await project(c, choice));
+        for (const choice of choices) selected.push(await resolveRepository(c, choice));
+        if (store.connection(c.id)?.revision !== c.revision) throw new Error('连接已变化，请刷新后重试');
+        const prepared = selected.map(p => { if (!body.branch && !p.defaultBranch) throw new Error('无法识别默认分支，请填写同步分支'); return { ...p, branch: validBranch(body.branch || p.defaultBranch) }; });
         const added = [];
-        for (const p of selected) {
-          if (store.state.repositories.some(r => r.projectId === p.projectId)) continue;
-          const repo = { ...p, id: crypto.randomUUID(), branch: validBranch(body.branch || p.defaultBranch), enabled: true, status: 'queued', stage: '等待同步', current: null, events: [] };
+        for (const p of prepared) {
+          if (store.state.repositories.some(r => r.connectionId === c.id && r.externalId === p.externalId)) continue;
+          const repo = { ...p, id: crypto.randomUUID(), connectionId: c.id, enabled: true, status: 'queued', stage: '等待同步', current: null, events: [] };
           store.state.repositories.push(repo); added.push(repo.id);
         }
         await store.save(); for (const id of added) sync.enqueue(id);
@@ -191,7 +223,7 @@ export async function startService(options = {}) {
       }
       return json(response, 404, { error: '接口不存在' });
     } catch (e) {
-      if (!response.headersSent) json(response, e.status || 400, { error: cleanError(e, [store.connection()?.token], [store.dir]) });
+      if (!response.headersSent) json(response, e.status || 400, { error: cleanError(e, store.connectionSecrets(), [store.dir]) });
       else response.end();
     }
   });

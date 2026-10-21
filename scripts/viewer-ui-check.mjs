@@ -81,7 +81,7 @@ try {
   checks.push('Logout denies map/source and removes private source, metadata, files and canvas from the open viewer');
   assert.deepEqual(errors, []); assert.deepEqual(externalRequests, []);
   checks.push('No JavaScript errors or external network requests; all graph libraries load locally');
-  const report = { version: '0.1.3', environment: process.env.VIEWER_TEST_ENV || 'host service', checks, javascriptErrors: errors, externalRequests, pinnedCommit: commit, viewport: ['1600x1000', '390x844'], data: 'synthetic Git HTTP repository; native Codegraph graph, symbol and source data' };
+  const report = { version: '0.2.0', environment: process.env.VIEWER_TEST_ENV || 'host service', checks, javascriptErrors: errors, externalRequests, pinnedCommit: commit, viewport: ['1600x1000', '390x844'], data: 'synthetic Git HTTP repository; native Codegraph graph, symbol and source data' };
   await fs.writeFile(new URL(prefix === 'map' ? 'viewer-ui-check.json' : `${prefix}-ui-check.json`, evidence), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report));
 } finally { await browser.close(); }

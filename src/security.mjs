@@ -39,13 +39,13 @@ export function cleanError(error, secrets = [], roots = []) {
 }
 export function normalizedBaseUrl(value) {
   const url = new URL(String(value).trim());
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('GitLab 地址需为 HTTP/HTTPS 服务地址，不包含凭据、查询参数或片段');
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('服务地址需为 HTTP/HTTPS 服务地址，不包含凭据、查询参数或片段');
   url.pathname = url.pathname.replace(/\/+$/, '');
   return url.toString().replace(/\/+$/, '');
 }
 export function sameGitlabRepository(value, base) {
   const url = new URL(value);
   const origin = new URL(`${base}/`);
-  if (!['http:', 'https:'].includes(url.protocol) || url.origin !== origin.origin || url.username || url.password || url.search || url.hash || !url.pathname.startsWith(origin.pathname)) throw new Error('仓库地址必须属于配置的 GitLab，且不包含凭据');
+  if (!['http:', 'https:'].includes(url.protocol) || url.origin !== origin.origin || url.username || url.password || url.search || url.hash || !url.pathname.startsWith(origin.pathname)) throw new Error('仓库地址必须属于所选代码源，且不包含凭据');
   return url.toString();
 }

@@ -7,16 +7,17 @@ import crypto from 'node:crypto';
 import { Store } from '../src/store.mjs';
 import { AccessTokens } from '../src/access-tokens.mjs';
 import { randomToken } from '../src/security.mjs';
-async function store() { process.env.ADMIN_BOOTSTRAP_PASSWORD = 'fixture-admin-password'; return new Store(await fs.mkdtemp(path.join(os.tmpdir(), 'atlas-token-store-'))).open(); }
-const repo = name => ({ id: crypto.randomUUID(), path: `team/${name}`, enabled: true });
+const fixtureSource = crypto.randomUUID();
+async function store() { process.env.ADMIN_BOOTSTRAP_PASSWORD = 'fixture-admin-password'; const s = await new Store(await fs.mkdtemp(path.join(os.tmpdir(), 'atlas-token-store-'))).open(); s.state.connections.push({ id: fixtureSource, type: 'gitlab', name: 'fixture', baseUrl: 'https://gitlab.example.invalid', username: 'oauth2', token: s.seal('fixture-token'), anonymous: false, revision: 1 }); return s; }
+const repo = name => ({ id: crypto.randomUUID(), path: `team/${name}`, connectionId: fixtureSource, externalId: name, enabled: true });
 
 test('legacy global token migrates once into an explicit scope; new repositories are never automatically granted', async () => {
   const saved = await store(), a = repo('a'), b = { ...repo('b'), enabled: false }, future = repo('future');
-  const secret = randomToken(); saved.state = { ...saved.state, version: 1, mcpToken: saved.seal(secret), repositories: [a, b] }; delete saved.state.accessTokens; await saved.save();
+  const secret = randomToken(); saved.state = { ...saved.state, version: 1, mcpToken: saved.seal(secret), connection: saved.state.connections[0], repositories: [a, b] }; delete saved.state.accessTokens; delete saved.state.connections; await saved.save();
   const migrated = await new Store(saved.dir).open(), tokens = new AccessTokens(migrated), legacy = tokens.legacy();
-  assert.equal(migrated.state.version, 2); assert.equal(migrated.unseal(legacy.secret), secret); assert.deepEqual(legacy.repositoryIds, [a.id, b.id]);
+  assert.equal(migrated.state.version, 3); assert.equal(migrated.unseal(legacy.secret), secret); assert.deepEqual(legacy.repositoryIds, [a.id, b.id]);
   assert(!('mcpToken' in migrated.state)); assert(!JSON.stringify(tokens.list()).includes(secret));
-  migrated.state.repositories.push(future); await migrated.save();
+  future.connectionId = migrated.state.connections[0].id; migrated.state.repositories.push(future); await migrated.save();
   assert.deepEqual(tokens.available(legacy.id, legacy.revision).map(r => r.id), [a.id]);
   const reopened = await new Store(saved.dir).open(); assert.equal(reopened.state.accessTokens.length, 1); assert.equal(reopened.state.accessTokens[0].id, legacy.id); assert.equal(reopened.unseal(reopened.state.accessTokens[0].secret), secret);
   assert(!JSON.stringify(reopened.state).includes(secret));

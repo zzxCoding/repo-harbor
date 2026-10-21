@@ -12,7 +12,7 @@ application or GitNexus code.
 | `@modelcontextprotocol/sdk` | 1.32.1 | MIT | https://github.com/modelcontextprotocol/typescript-sdk |
 
 Codegraph provides the native parser, indexes and code graph tools. RepoHarbor
-adds GitLab synchronization, immutable snapshot publishing, the administrator
+adds Git synchronization across hosting platforms, immutable snapshot publishing, the administrator
 interface, graph browsing and repository-scoped HTTP MCP access.
 
 The full dependency graph, registry URLs and integrity values are recorded in

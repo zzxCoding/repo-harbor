@@ -4,7 +4,7 @@
 
 **代码汇入港，AI 有图可循。**
 
-可自托管的代码地图与 MCP 服务：在网页里连接 GitLab、添加仓库，后台自动同步和建图，
+可自托管的代码地图与 MCP 服务：在网页里连接 GitLab、GitHub 或通用 HTTP(S) Git 服务、添加仓库，后台自动同步和建图，
 让 AI 从本地地图定位实现、追踪调用，再读取同一版本的源码。
 
 [快速部署](#快速部署) · [页面配置](#页面配置) · [MCP 接入](#mcp-接入) ·
@@ -13,18 +13,18 @@
 
 ![仓库控制台](docs/screenshots/repositories.png)
 
-> 当前版本 **0.1.3**，支持 **Linux x86_64 / AMD64** Docker 部署，页面为简体中文。
+> 当前版本 **0.2.0**，支持 **Linux x86_64 / AMD64** Docker 部署，页面为简体中文。
 > 建立地图不需要 LLM、embedding、Neo4j 或其他外部数据库。
 > GitHub 仓库提供源码和打包脚本；下面的步骤会在本机构建镜像。
 
 ## 解决什么问题
 
-当 AI 逐次通过 GitLab API 搜索、打开文件时，需要反复访问远端，也很难直接取得调用、
+当 AI 逐次通过托管平台 API 搜索、打开文件时，需要反复访问远端，也很难直接取得调用、
 引用和依赖关系。RepoHarbor 把这些工作提前放在服务器上完成：
 
 ```mermaid
 flowchart LR
-    G[GitLab 仓库] -->|定时 Git fetch| S[不可变 commit 快照]
+    G[GitLab / GitHub / 通用 Git] -->|定时 Git fetch| S[不可变 commit 快照]
     S --> C[Codegraph 索引与符号关系]
     C --> P[验证后发布代码地图]
     P --> W[浏览器地图与源码]
@@ -32,14 +32,15 @@ flowchart LR
     M --> A[AI 客户端]
 ```
 
-日常 AI 查询读取本地已发布快照；GitLab API 用于连接测试、项目发现和分支查询。
+日常 AI 查询读取本地已发布快照；GitLab / GitHub API 用于连接测试、项目发现和分支查询，通用 Git 通过标准 Git 协议识别分支。
 同步失败时保留上一个已发布版本。AI 会话中的地图和源码固定在同一 commit。
 
 ## 主要能力
 
 | 能力 | 具体行为 |
 | --- | --- |
-| 网页配置 | 填 GitLab 地址、Token 和具体仓库地址，选择分支，无需手写仓库清单 |
+| 网页配置 | 选择 GitLab、GitHub 或通用 Git，填写具体仓库地址和分支，无需手写仓库清单 |
+| 多连接 | 最多 32 组连接，可同时接入不同平台或服务器；各仓库独立绑定连接与凭据 |
 | 自动同步 | 默认每 15 分钟检查更新；commit 未变化时跳过建图，也可立即同步 |
 | 完整代码地图 | 基于 Codegraph 3.0.0，提供符号、调用、引用、文件依赖等查询 |
 | 浏览器查看 | 文件搜索、依赖图、文件内符号关系、源码行跳转，资源随镜像离线提供 |
@@ -50,14 +51,14 @@ flowchart LR
 | 内网安装 | 可在联网机器构建 AMD64 离线包，上传服务器后校验、加载和启动 |
 
 RepoHarbor 的解析和图查询能力来自 [Codegraph](https://github.com/lzehrung/codegraph)。
-本项目补充 GitLab 同步、快照发布、网页管理、可视化和按仓库授权的远程 MCP，
+本项目补充多平台 Git 同步、快照发布、网页管理、可视化和按仓库授权的远程 MCP，
 不是独立研发的代码解析引擎。
 
 ## 快速部署
 
 需要已启动的 Docker Engine、Docker Compose v2 和 Git。
 **首次从源码构建需要联网**，用于下载固定的 Node 基础镜像、Debian 软件包和 npm 依赖；
-启动后的服务需要能访问你配置的 GitLab。
+启动后的服务需要能访问你配置的代码托管服务。
 
 ```bash
 git clone https://github.com/zzxCoding/repo-harbor.git
@@ -65,7 +66,7 @@ cd repo-harbor
 ./scripts/start.sh
 ```
 
-脚本构建 `repo-harbor:0.1.3-amd64`、生成首次管理密码、启动容器并等待健康检查。
+脚本构建 `repo-harbor:0.2.0-amd64`、生成首次管理密码、启动容器并等待健康检查。
 打开 **`http://服务器IP:8093`**，使用命令输出中的管理密码登录。
 密码也保存在部署目录 `.env`，文件权限为 `0600`。
 
@@ -87,12 +88,12 @@ PORT=18093 BIND_ADDRESS=127.0.0.1 ./scripts/start.sh
 ./scripts/build-offline.sh
 ```
 
-将生成的 `delivery/repo-harbor-0.1.3-linux-amd64.tar.gz` 和对应 `.sha256` 上传服务器：
+将生成的 `delivery/repo-harbor-0.2.0-linux-amd64.tar.gz` 和对应 `.sha256` 上传服务器：
 
 ```bash
-sha256sum -c repo-harbor-0.1.3-linux-amd64.tar.gz.sha256
-tar -xzf repo-harbor-0.1.3-linux-amd64.tar.gz
-cd repo-harbor-0.1.3-linux-amd64
+sha256sum -c repo-harbor-0.2.0-linux-amd64.tar.gz.sha256
+tar -xzf repo-harbor-0.2.0-linux-amd64.tar.gz
+cd repo-harbor-0.2.0-linux-amd64
 ./deploy.sh
 ```
 
@@ -101,29 +102,43 @@ ARM 构建机需具备 AMD64 仿真能力。详细步骤见 [离线部署](docs/
 
 ## 页面配置
 
-### 1. 连接 GitLab
+### 1. 添加代码源连接
 
-打开 **GitLab 连接**，填写服务首页地址、Git 用户名和 Access Token，测试成功后保存。
+打开 **代码源 → 添加连接**，填写连接名称，选择平台并配置服务首页地址。
+同一个实例可以同时连接 GitLab、GitHub 和其他 Git 服务，各组凭据独立加密保存。
 
-- Token 需要 **`read_api` + `read_repository`**，并且对应账号有目标项目读取权限。
-- 使用个人访问令牌时，Git 用户名通常可填 `oauth2`；凭据用于 HTTP(S) Git 同步。
-- 自签证书或企业 CA：在页面填入 PEM 格式 CA 证书，无需关闭 TLS 校验。
-- 支持内网 HTTP、HTTPS、自定义端口及 GitLab 子路径部署。
-- 本版用 GitLab REST API 发现项目信息，GitLab deploy token 无法替代所需的 API 凭据。
+| 平台 | 配置与权限 |
+| --- | --- |
+| GitLab | 填服务首页地址；Token 需要 `read_api`、`read_repository` 和目标项目读取权限，Git 用户名通常为 `oauth2` |
+| GitHub | 填 `https://github.com`；个人访问令牌选择目标仓库并授予 Contents 读取权限；Git 用户名默认 `x-access-token` |
+| GitHub Enterprise Server | 选择 GitHub，填写企业实例首页；服务自动使用该实例的 `/api/v3`，不要填写 API 地址 |
+| 通用 Git | 填仓库所在服务首页或路径前缀，私有仓库填实际 Git 用户名与密码 / Token；添加具体仓库时验证读取权限，不依赖平台 API |
 
-Scope 定义见 [GitLab 官方说明](https://docs.gitlab.com/user/profile/personal_access_tokens/)。
+GitHub 和通用 Git 的公开仓库可勾选 **无需认证**。GitLab 连接仍需要 Token。
+GitLab / GitHub 可先测试连接再保存；通用 Git 的读取权限在添加仓库时通过真实 Git 握手验证，
+保存连接本身不代表已验证某个仓库可读取。
+
+支持内网 HTTP、HTTPS、自定义端口和内部 CA。企业自签证书可在页面填写 PEM 格式 CA，
+无需关闭 TLS 校验。GitLab 支持子路径部署。GitHub 组织可能要求批准令牌或额外 SSO 授权。
+当前使用个人访问令牌，不提供 OAuth 登录、GitHub App 令牌自动刷新或 SSH key 认证。
+
+详细配置见 [代码源说明](docs/SOURCES.md)。权限依据见
+[GitLab Token scope](https://docs.gitlab.com/user/profile/personal_access_tokens/) 和
+[GitHub Contents 读取权限](https://docs.github.com/en/rest/branches/branches#list-branches)。
+
+![多代码源连接](docs/screenshots/sources.png)
 
 ### 2. 添加仓库与分支
 
-打开 **仓库 → 添加仓库**，直接填写具体仓库地址，例如：
+打开 **仓库 → 添加仓库**，先选择所属代码源，再填写具体仓库地址，例如：
 
 ```text
 https://gitlab.example.internal/team/order-service.git
 ```
 
-也接受 `team/order-service` 或 `git@host:team/order-service.git`。
-SSH 形式只用于识别项目，实际使用 GitLab 返回的 HTTP(S) 地址和 Token 同步；
-当前不使用 SSH key。
+GitLab / GitHub 也接受 `team/order-service` 或 `git@host:team/order-service.git`。
+SSH 形式只用于识别项目，实际使用 HTTP(S) 地址同步，不使用 SSH key。
+通用 Git 必须填写属于所选连接的完整 HTTP(S) 仓库地址。每个仓库只使用其绑定连接的凭据。
 
 分支留空时采用项目默认分支，也可填写目标分支。保存后自动开始首次同步和完整建图；
 后续可在仓库详情中切换分支。每个仓库配置跟踪一个分支。
@@ -156,7 +171,7 @@ SSH 形式只用于识别项目，实际使用 GitLab 返回的 HTTP(S) 地址�
 - `list_repos` 只显示该令牌获准且已启用的仓库；手工传入其他仓库 ID 也不能越权。
 - 后续新增仓库不会自动加入旧令牌权限；移除后重新添加同路径仓库需要重新授权。
 - 修改权限、启停、轮换或删除令牌后，其原有会话失效，客户端需重新连接。
-- 管理密码、GitLab Token 和 AI 读取令牌分别使用；AI 只需要最后一种。
+- 管理密码、代码源凭据和 AI 读取令牌分别使用；AI 只需要最后一种。
 
 ## MCP 接入
 
@@ -197,7 +212,8 @@ SSH 形式只用于识别项目，实际使用 GitLab 返回的 HTTP(S) 地址�
 {"name":"get_file","arguments":{"repo":"<仓库id>","file":"src/pricing.ts","offset":1,"limit":80}}
 ```
 
-`repo` 接受 `list_repos` 返回的仓库 ID 或准确的 GitLab 项目路径；只有获准且启用的
+推荐始终使用 `list_repos` 返回的仓库 ID；结果中的 `source` 标明所属连接。
+`repo` 也接受不重名的准确仓库路径；跨代码源同名时必须使用 ID。只有获准且启用的
 仓库仅一个时才能省略。`get_file.offset` 从 **1** 开始。
 结果附带 `repository/branch/commit/indexedAt` 元数据，重新连接会话可读取新发布版本。
 全部工具和限制见 [MCP 说明](docs/MCP.md)。
@@ -215,6 +231,10 @@ docker stats --no-stream "$(docker compose --env-file .env -f compose.yml ps -q 
 为兼容早期 Code Atlas 部署，Compose 项目名 `code-atlas`、内部服务名 `atlas`、
 默认数据卷 `code-atlas-data` 保留。对外项目名、MCP 服务名和镜像名使用 RepoHarbor。
 同机部署多个实例时，需要分别设置 Compose 项目名、端口和数据卷，见运维说明。
+
+从 0.1.3 或旧 Code Atlas 升级时，单 GitLab 连接自动迁移到多连接格式（version=3），
+仓库 ID、已发布地图、管理员密码和 AI 令牌权限保持不变。回退到 0.1.3 或更早版本，
+需要恢复升级前备份到新卷，不能只切换旧镜像。
 
 数据卷保存配置、密码哈希、加密凭据及密钥、Git 镜像、源码快照和索引。
 **更新前备份，不要执行 `docker compose down -v`。**
@@ -244,12 +264,12 @@ AI 宜先把中文问题转成可能的类名、方法名、字段名、业务�
 
 ## 安全与使用边界
 
-- 当前为单管理员、一个 GitLab 连接、多仓库服务；未实现团队账号、SSO 或自动继承
-  每个 AI 用户在 GitLab 的权限。管理员负责分配令牌仓库范围，最多 64 个读取令牌。
+- 当前为单管理员、最多 32 个代码源连接的多仓库服务；未实现团队账号、SSO 或自动继承
+  每个 AI 用户在托管平台的权限。管理员负责分配令牌仓库范围，最多 64 个读取令牌。
 - MCP 只读，不开放 `refresh_index`、`artifact_build`、`query_sqlite`；
   AI 不能通过本服务提交代码、切换分支或触发建图。
 - 不运行仓库脚本、hook，不初始化 submodule，也不下载 Git LFS 文件内容。
-- GitLab 凭据加密存储，不回填到页面，不放进源码快照或 Codegraph reader 环境。
+- 代码源凭据加密存储，不回填到页面，不放进源码快照或 Codegraph reader 环境。
   数据卷包含解密密钥，备份仍需按凭据和源码的权限保护。
 - 容器以非 root 用户运行，根文件系统只读、移除 Linux capabilities、无 Docker socket。
 - 浏览器图默认最多显示 250 个节点以控制绘制开销；文件搜索及 MCP 完整索引不因此裁剪。

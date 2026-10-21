@@ -3,15 +3,11 @@ set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 old_dir=${1:-}
 if [[ -z "$old_dir" ]]; then
-  if [[ -f ../code-atlas-0.1.2-linux-amd64/.env ]]; then
-    old_dir=../code-atlas-0.1.2-linux-amd64
-  elif [[ -f ../code-atlas-0.1.1-linux-amd64/.env ]]; then
-    old_dir=../code-atlas-0.1.1-linux-amd64
-  else
-    old_dir=../code-atlas-0.1.0-linux-amd64
-  fi
+  for candidate in ../repo-harbor-0.1.3-linux-amd64 ../code-atlas-0.1.3-linux-amd64 ../code-atlas-0.1.2-linux-amd64 ../code-atlas-0.1.1-linux-amd64 ../code-atlas-0.1.0-linux-amd64; do
+    if [[ -f "$candidate/.env" ]]; then old_dir=$candidate; break; fi
+  done
 fi
-[[ -f "$old_dir/.env" ]] || { echo '请把旧部署目录作为参数传入，例如 ./upgrade.sh ../code-atlas-0.1.2-linux-amd64'; exit 1; }
+[[ -n "$old_dir" && -f "$old_dir/.env" ]] || { echo '请把旧部署目录作为参数传入，例如 ./upgrade.sh ../repo-harbor-0.1.3-linux-amd64'; exit 1; }
 if [[ ! -f .env ]]; then
   umask 077
   cp -- "$old_dir/.env" .env
@@ -22,5 +18,5 @@ fi
 ./load.sh
 ./backup.sh
 ./deploy.sh
-echo '升级完成。已有仓库、GitLab 凭据、管理密码和 AI 读取令牌保留。仓库会自动恢复并继续同步。'
-echo 'AI 接入页可编辑原有读取令牌的仓库范围。新配置格式为 version=2，回退旧应用需恢复升级前备份。'
+echo '升级完成。已有仓库、代码源凭据、管理密码和 AI 读取令牌保留。仓库会自动恢复并继续同步。'
+echo 'AI 接入页可编辑原有读取令牌的仓库范围。新配置格式为 version=3，回退 0.1.3 或更早版本需恢复升级前备份。'

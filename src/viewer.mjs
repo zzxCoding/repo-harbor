@@ -57,7 +57,7 @@ export class Viewer {
     entry[1].until = Date.now() + 30 * 60_000;
     return { viewId: entry[0], repository: this.metadata(repo, snapshot), graph };
   }
-  metadata(repo, snapshot) { return { id: repo.id, name: snapshot.name, branch: snapshot.branch, commit: snapshot.commit, indexedAt: snapshot.indexedAt }; }
+  metadata(repo, snapshot) { const r = this.store.state.repositories.find(r => r.id === repo.id); const c = this.store.state.connections.find(c => c.id === r?.connectionId); return { id: repo.id, name: snapshot.name, source: c ? { id: c.id, name: c.name, type: c.type } : null, branch: snapshot.branch, commit: snapshot.commit, indexedAt: snapshot.indexedAt }; }
   pin(sid, id) {
     this.prune(); const pin = this.pins.get(id);
     if (!pin || pin.sid !== sid) fail(404, '地图会话已过期，请重新打开');

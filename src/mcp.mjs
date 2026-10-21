@@ -5,6 +5,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema, isInitializeRequest } fr
 import { engineTools } from './engine.mjs';
 import { cleanError } from './security.mjs';
 import { AccessTokens } from './access-tokens.mjs';
+import { sourceSummary } from './sources.mjs';
 
 const asText = value => ({ content: [{ type: 'text', text: JSON.stringify(value) }] });
 export class McpGateway {
@@ -43,15 +44,16 @@ export class McpGateway {
     const session = { tokenId: principal.id, tokenRevision: principal.revision, snapshots: new Map(), engines: new Map(), lastUsed: Date.now(), active: 0 };
     const available = () => this.tokens.available(session.tokenId, session.tokenRevision);
     const assertAllowed = id => { if (!available().some(r => r.id === id)) throw new Error('仓库不可用或未授权'); };
-    const server = new Server({ name: 'repo-harbor', version: '0.1.3' }, { capabilities: { tools: {} }, instructions: 'Use list_repos to choose a repository allowed by this token, then pass its id in repo to map/source tools. Only granted, enabled repositories are readable. A repository is pinned to its published commit on first use in this MCP session. Reconnect to read a newer commit or after permissions change.' });
+    const source = repo => sourceSummary(this.store.state.connections.find(c => c.id === repo.connectionId));
+    const server = new Server({ name: 'repo-harbor', version: '0.2.0' }, { capabilities: { tools: {} }, instructions: 'Use list_repos to choose a repository allowed by this token, then pass its id in repo to map/source tools. Only granted, enabled repositories are readable. A repository is pinned to its published commit on first use in this MCP session. Reconnect to read a newer commit or after permissions change.' });
     server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [
       { name: 'list_repos', description: 'List only repositories granted to this token and enabled, with published commit, sync state, and any version already pinned in this session.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
-      ...engineTools.map(tool => ({ ...tool, description: `${tool.description} Pass repo from list_repos; returned repository metadata identifies the fixed source commit.`, inputSchema: { ...tool.inputSchema, properties: { ...tool.inputSchema.properties, repo: { type: 'string', description: 'Granted repository id or exact GitLab project path; optional when this token can access only one enabled repository.' } } } })),
+      ...engineTools.map(tool => ({ ...tool, description: `${tool.description} Pass repo from list_repos; returned repository metadata identifies the fixed source commit.`, inputSchema: { ...tool.inputSchema, properties: { ...tool.inputSchema.properties, repo: { type: 'string', description: 'Granted repository id (recommended), or an unambiguous exact repository path; optional when this token can access only one enabled repository.' } } } })),
     ] }));
     server.setRequestHandler(CallToolRequestSchema, async request => {
       const { name, arguments: args = {} } = request.params;
       if (name === 'list_repos') {
-        try { return asText({ repositories: available().map(r => ({ id: r.id, name: r.path, branch: r.current?.branch, commit: r.current?.commit, indexedAt: r.current?.indexedAt, status: r.status, lastError: r.lastError, sessionCommit: session.snapshots.get(r.id)?.commit })), sessionPolicy: 'pin repository on first tool call; reconnect for newer versions or changed token permissions' }); }
+        try { return asText({ repositories: available().map(r => ({ id: r.id, name: r.path, source: source(r), branch: r.current?.branch, commit: r.current?.commit, indexedAt: r.current?.indexedAt, status: r.status, lastError: r.lastError, sessionCommit: session.snapshots.get(r.id)?.commit })), sessionPolicy: 'pin repository on first tool call; reconnect for newer versions or changed token permissions' }); }
         catch (e) { return { isError: true, content: [{ type: 'text', text: e.message }] }; }
       }
       if (!engineTools.some(tool => tool.name === name)) return { isError: true, content: [{ type: 'text', text: '此工具未开放；AI 只能读取已发布地图和源码。' }] };
@@ -59,7 +61,10 @@ export class McpGateway {
       this.inFlight++;
       try {
         const allowed = available();
-        const repo = args.repo ? allowed.find(r => r.id === args.repo || r.path === args.repo) : allowed.length === 1 ? allowed[0] : null;
+        const byId = args.repo && allowed.find(r => r.id === args.repo);
+        const paths = args.repo ? allowed.filter(r => r.path === args.repo) : [];
+        if (!byId && paths.length > 1) throw new Error('仓库路径对应多个代码源，请传入 list_repos 返回的仓库 id');
+        const repo = byId || (args.repo ? paths[0] : allowed.length === 1 ? allowed[0] : null);
         if (!repo) throw new Error(args.repo ? '仓库不可用或未授权' : '请先调用 list_repos，选择一个获准仓库并传入 repo');
         if (!repo.current) throw new Error('此仓库尚未发布代码地图，请等待首次同步成功');
         let snapshot = session.snapshots.get(repo.id);
@@ -81,7 +86,7 @@ export class McpGateway {
         // A permission change can occur while parsing or reading. Never deliver
         // an already-started result after its token or repository was revoked.
         assertAllowed(repo.id);
-        const metadata = { id: repo.id, name: snapshot.name, branch: snapshot.branch, commit: snapshot.commit, indexedAt: snapshot.indexedAt };
+        const metadata = { id: repo.id, name: snapshot.name, source: source(repo), branch: snapshot.branch, commit: snapshot.commit, indexedAt: snapshot.indexedAt };
         return { ...result, content: result.content.map(block => {
           if (block.type !== 'text') return block;
           try { const value = JSON.parse(block.text); return { ...block, text: JSON.stringify({ ...value, repository: metadata }) }; }

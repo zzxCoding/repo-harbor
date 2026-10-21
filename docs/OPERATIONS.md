@@ -18,7 +18,7 @@
 多实例要为每个实例设置不同的 `COMPOSE_PROJECT_NAME`、`PORT`、`DATA_VOLUME`；
 不能只换端口。默认配置是一个实例，数据卷名称是显式指定的，不会随项目名自动变化。
 
-管理密码哈希、GitLab Token 密文、读取令牌密文和 master key 均在持久化目录中。
+管理密码哈希、代码源凭据密文、读取令牌密文和 master key 均在持久化目录中。
 密钥与密文同时保存在数据卷，磁盘访问者可取得解密所需材料；加密存储不能代替文件
 权限和备份保护。丢失 key 时服务不会生成新 key 覆盖已有配置。
 
@@ -78,12 +78,12 @@ docker run --rm --platform linux/amd64 --user 0 --network none --read-only \
   --entrypoint tar \
   -v repo-harbor-restored-data:/data \
   -v "$PWD/backups":/backup:ro \
-  repo-harbor:0.1.3-amd64 \
+  repo-harbor:0.2.0-amd64 \
   xzf /backup/替换为实际备份文件名.tar.gz -C /data
 ```
 
 将 `.env` 中 `DATA_VOLUME` 改为恢复卷名，再按部署方式启动。
-确认原管理密码、GitLab 连接、令牌权限、发布 commit 和实际 MCP 读源码正常，
+确认原管理密码、代码源连接、令牌权限、发布 commit 和实际 MCP 读源码正常，
 期间保留原卷。`docker volume create` 不会拒绝已经存在的卷，执行前应确认新卷名
 尚未被使用，避免把备份解入旧数据。
 
@@ -93,12 +93,13 @@ docker run --rm --platform linux/amd64 --user 0 --network none --read-only \
 脚本重新构建镜像并重建容器，保留 `.env` 和数据卷。若有本地修改，先处理 Git 状态，
 不要强制覆盖。离线部署的升级路径见 [OFFLINE.md](OFFLINE.md)。
 
-旧 Code Atlas 0.1.0–0.1.2 的 version=1 配置会迁移到 version=2；
-原有读取令牌固定授权迁移时存在的仓库，不会动态授权未来新增仓库。
+旧 Code Atlas 0.1.0–0.1.2 的 version=1、0.1.3 的 version=2 配置会迁移到 version=3。
+原有单 GitLab 连接变为一条独立连接，各仓库自动绑定它。仓库 ID、发布快照、管理密码和
+读取令牌值与权限清单保留；新增代码源或仓库不会自动扩大旧令牌范围。
 
-回退需同时匹配应用版本和数据格式。**version=2 数据不能直接交给只认识 version=1
-的旧应用。** 使用旧安装包/镜像，将升级前备份恢复到新卷，并让旧应用连接新卷。
-保留升级后的卷，避免丢失升级后的操作。回退后的读取令牌值和权限以备份时刻为准。
+回退需同时匹配应用和数据格式。**version=3 数据不能直接交给 0.1.3 或更早的旧应用。**
+使用旧安装包/镜像，将升级前备份恢复到新卷，并让旧应用连接新卷。保留升级后的卷，
+避免丢失升级后的操作。回退后的读取令牌值、权限和连接配置以备份时刻为准。
 
 ## 域名与 HTTPS 反向代理
 
@@ -133,7 +134,10 @@ location / {
 
 | 现象 | 检查方向 |
 | --- | --- |
-| GitLab 测试返回 401 | Token 值、是否过期、是否撤销 |
+| GitLab / GitHub 测试返回 401 | Token 值、是否过期、是否撤销 |
+| GitHub 返回 403 / 404 | 仓库选择、Contents 读取、组织批准 / SSO 授权、API 速率限制 |
+| 通用 Git 保存后添加失败 | 检查实际仓库地址、Git 用户名与密码 / Token，保存连接本身不验证仓库读取权 |
+| 多个代码源存在同名仓库 | 依据连接名称区分，MCP 使用 list_repos 返回的仓库 ID |
 | GitLab 返回 403 / 404 | `read_api`、`read_repository`、项目成员权限、地址和子路径 |
 | TLS 证书校验失败 | 管理页面中填企业 CA 的 PEM 证书，确认域名与证书匹配 |
 | 文件索引 100% 仍未发布 | 继续观察符号关系和验证阶段，这是完整建图的一部分 |

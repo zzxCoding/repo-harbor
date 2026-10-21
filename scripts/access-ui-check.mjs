@@ -68,6 +68,6 @@ try {
   assert.equal(await page.locator('#access-token-list').textContent(), ''); assert.equal(await page.locator('#access-token-repositories').textContent(), ''); assert.equal(await page.locator('#mcp-token').inputValue(), '点击查看令牌'); assert.equal(await page.locator('#access-token-selected-scope').textContent(), '');
   checks.push('Logout clears secrets, selected scopes, names and repository choices from the DOM');
   assert.deepEqual(errors, []);
-  const report = { version: '0.1.3', environment: process.env.ACCESS_TEST_ENV || 'host service', checks, javascriptErrors: errors, viewport: ['1440x1000','390x844'], data: 'two synthetic repositories, native Codegraph; real MCP calls use credentials configured through the page' };
+  const report = { version: '0.2.0', environment: process.env.ACCESS_TEST_ENV || 'host service', checks, javascriptErrors: errors, viewport: ['1440x1000','390x844'], data: 'two synthetic repositories, native Codegraph; real MCP calls use credentials configured through the page' };
   await fs.writeFile(new URL(`${prefix}-ui-check.json`, evidence), JSON.stringify(report,null,2)); console.log(JSON.stringify(report));
 } finally { await Promise.allSettled(clients.map(c => c.close())); await browser.close(); }

@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-let state = null, page = 'repos', detailId = null, token = null, toastTimer, connectionFilled = false, lastRows = '';
+let state = null, page = 'repos', detailId = null, token = null, toastTimer, lastRows = '';
 let selectedTokenId = null, editingTokenId = null, tokenScopeSelection = new Set(), lastTokenRows = '';
 const labels = { ready: '已发布', queued: '等待同步', fetching: '拉取代码', indexing: '建立地图', restoring: '恢复查询', error: '同步失败', paused: '已暂停' };
 const escape = text => String(text ?? '').replace(/[&<>"']/g, x => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[x]));
@@ -19,28 +19,26 @@ async function api(url, options = {}) {
   return value;
 }
 function showLogin() {
-  $('app').hidden = true; $('login-screen').hidden = false; state = null; connectionFilled = false; token = null;
+  $('app').hidden = true; $('login-screen').hidden = false; state = null; token = null;
   $('login-password').value = ''; $('connection-form').reset(); $('password-form').reset();
   $('mcp-token').value = '点击查看令牌'; $('mcp-token').type = 'password'; $('show-token').textContent = '查看';
+  editingConnectionId = null; lastConnections = ''; $('connection-list').replaceChildren(); $('repo-connection').replaceChildren();
   $('repo-rows').replaceChildren(); $('detail-events').replaceChildren(); lastRows = '';
   selectedTokenId = null; editingTokenId = null; tokenScopeSelection.clear(); lastTokenRows = ''; $('access-token-list').replaceChildren(); $('access-token-repositories').replaceChildren(); $('access-token-form').reset(); $('access-token-count').textContent = ''; $('access-token-selected-name').textContent = ''; $('access-token-selected-scope').textContent = ''; $('access-token-selected').hidden = true;
   for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
 }
 async function busy(form, fn) { const buttons = [...form.querySelectorAll('button')]; buttons.forEach(b => b.disabled = true); try { await fn(); } finally { buttons.forEach(b => b.disabled = false); } }
-function navigate(next) { page = next; for (const section of ['repos', 'connection', 'ai', 'settings']) $('page-' + section).hidden = next !== section; document.querySelectorAll('nav [data-page]').forEach(button => { button.classList.toggle('active', button.dataset.page === next); button.setAttribute('aria-current', button.dataset.page === next ? 'page' : 'false'); }); const name = { repos: '仓库', connection: 'GitLab 连接', ai: 'AI 接入', settings: '管理设置' }; $('breadcrumb').textContent = `工作区 / ${name[next]}`; }
+function navigate(next) { page = next; for (const section of ['repos', 'connection', 'ai', 'settings']) $('page-' + section).hidden = next !== section; document.querySelectorAll('nav [data-page]').forEach(button => { button.classList.toggle('active', button.dataset.page === next); button.setAttribute('aria-current', button.dataset.page === next ? 'page' : 'false'); }); const name = { repos: '仓库', connection: '代码源', ai: 'AI 接入', settings: '管理设置' }; $('breadcrumb').textContent = `工作区 / ${name[next]}`; }
 function render() {
   if (!state) return;
   const rows = state.repositories; const ready = rows.filter(r => r.current && r.enabled).length;
   $('repo-summary').textContent = rows.length ? `${rows.length} 个仓库，${ready} 个已发布` : '暂无仓库';
-  $('connection-notice').hidden = Boolean(state.connection); $('repo-empty').hidden = rows.length > 0; $('repo-table-wrap').hidden = rows.length === 0;
-  $('sync-all').disabled = !rows.some(r => r.enabled); $('connection-indicator').textContent = state.connection ? '已配置 GitLab' : '尚未连接 GitLab'; $('connection-indicator').classList.toggle('connected', Boolean(state.connection));
+  $('connection-notice').hidden = Boolean(state.connections.length); $('repo-empty').hidden = rows.length > 0; $('repo-table-wrap').hidden = rows.length === 0;
+  $('sync-all').disabled = !rows.some(r => r.enabled); $('connection-indicator').textContent = state.connections.length ? `已配置 ${state.connections.length} 个代码源` : '尚未配置代码源'; $('connection-indicator').classList.toggle('connected', Boolean(state.connections.length));
   $('task-indicator').textContent = state.task ? `正在同步，另有 ${state.queued} 个等待` : state.queued ? `${state.queued} 个任务等待同步` : '自动同步已就绪';
-  const html = rows.map(r => `<tr><td><button class="repo-name" data-detail="${r.id}">${escape(r.name)}</button><div class="repo-path">${escape(r.path)}</div><span class="branch-tag">${escape(r.branch)}</span></td><td><span class="pill ${escape(r.status)}">${labels[r.status] || '等待同步'}</span><span class="status-sub">${escape(r.current && r.status === 'error' ? '仍可读取上次发布版本' : r.stage)}</span></td><td><span class="commit">${r.current ? escape(r.current.commit.slice(0, 12)) : '尚未发布'}${r.current?.branch !== r.branch && r.current ? `<small>当前：${escape(r.current.branch)}</small>` : ''}</span></td><td>${time(r.lastSuccess)}</td><td class="right"><div class="row-actions"><button class="text-button" data-sync="${r.id}" ${r.enabled ? '' : 'disabled'}>同步</button><button class="text-button" data-detail="${r.id}">详情</button></div></td></tr>`).join('');
+  const html = rows.map(r => `<tr><td><button class="repo-name" data-detail="${r.id}">${escape(r.name)}</button><div class="repo-path">${escape(r.path)}</div><small class="source-label">${escape(r.source?.name || '')}</small><span class="branch-tag">${escape(r.branch)}</span></td><td><span class="pill ${escape(r.status)}">${labels[r.status] || '等待同步'}</span><span class="status-sub">${escape(r.current && r.status === 'error' ? '仍可读取上次发布版本' : r.stage)}</span></td><td><span class="commit">${r.current ? escape(r.current.commit.slice(0, 12)) : '尚未发布'}${r.current?.branch !== r.branch && r.current ? `<small>当前：${escape(r.current.branch)}</small>` : ''}</span></td><td>${time(r.lastSuccess)}</td><td class="right"><div class="row-actions"><button class="text-button" data-sync="${r.id}" ${r.enabled ? '' : 'disabled'}>同步</button><button class="text-button" data-detail="${r.id}">详情</button></div></td></tr>`).join('');
   if (html !== lastRows) { $('repo-rows').innerHTML = html; lastRows = html; }
-  if (!connectionFilled) {
-    if (state.connection) { $('gitlab-url').value = state.connection.baseUrl; $('gitlab-username').value = state.connection.username; $('gitlab-ca').value = state.connection.caPem; $('token-note').textContent = '已保存凭据。留空保留当前 Token。'; }
-    connectionFilled = true;
-  }
+  renderConnections();
   if (document.activeElement !== $('interval')) $('interval').value = state.intervalMinutes;
   if (document.activeElement !== $('build-timeout')) $('build-timeout').value = state.buildTimeoutMinutes;
   renderDetail();
@@ -48,15 +46,69 @@ function render() {
 }
 async function refresh() { state = await api('state'); render(); }
 async function showApp() { $('login-screen').hidden = true; $('app').hidden = false; await refresh(); navigate(page); }
-function connectionBody() { return { baseUrl: $('gitlab-url').value, username: $('gitlab-username').value, token: $('gitlab-token').value, caPem: $('gitlab-ca').value, group: state?.connection?.group || '' }; }
 async function copy(text) { try { if (!navigator.clipboard) throw new Error(); await navigator.clipboard.writeText(text); } catch { const area = document.createElement('textarea'); area.className = 'clipboard-buffer'; area.value = text; document.body.append(area); area.select(); const copied = document.execCommand('copy'); area.remove(); if (!copied) throw new Error('浏览器不允许复制，请手工选择内容'); } toast('已复制'); }
 function confirm(title, message, button = '确认') { return new Promise(resolve => { $('confirm-title').textContent = title; $('confirm-message').textContent = message; $('confirm-ok').textContent = button; const dialog = $('confirm-dialog'); const finish = value => { dialog.close(); $('confirm-ok').onclick = null; $('confirm-cancel').onclick = null; dialog.oncancel = null; resolve(value); }; $('confirm-ok').onclick = () => finish(true); $('confirm-cancel').onclick = () => finish(false); dialog.oncancel = event => { event.preventDefault(); finish(false); }; dialog.showModal(); }); }
-function openAdd() { if (!state?.connection) { navigate('connection'); toast('请先保存 GitLab 连接'); return; } $('add-form').reset(); $('add-error').textContent = ''; $('add-dialog').showModal(); $('repo-url').focus(); }
+const sourceLabels = { gitlab: 'GitLab', github: 'GitHub', git: '通用 Git' };
+let editingConnectionId = null, lastConnections = '';
+const repositoryLabel = repo => repo ? `${repo.source?.name ? repo.source.name + ' / ' : ''}${repo.path}` : '已移除仓库';
+function renderConnections() {
+  const entries = state.connections || [];
+  $('connection-empty').hidden = entries.length > 0; $('connection-list').hidden = !entries.length; $('create-connection').disabled = entries.length >= 32;
+  const signature = JSON.stringify([entries, state.repositories.map(r => [r.id, r.connectionId])]);
+  if (signature === lastConnections) return;
+  $('connection-list').innerHTML = entries.map(c => {
+    const count = state.repositories.filter(r => r.connectionId === c.id).length;
+    return `<li class="connection-row"><div><strong>${escape(c.name)}</strong><span class="branch-tag">${sourceLabels[c.type]}</span></div><p>${escape(c.baseUrl)}</p><small>${count} 个仓库 · ${c.anonymous ? '无需认证' : '已保存读取凭据'}</small><div class="row-actions"><button class="text-button" data-connection-action="edit" data-connection-id="${c.id}">编辑连接</button><button class="text-button danger" data-connection-action="delete" data-connection-id="${c.id}" ${count ? 'disabled title="请先移除该连接的仓库配置"' : ''}>移除连接</button></div></li>`;
+  }).join(''); lastConnections = signature;
+}
+function connectionFields(reset = false) {
+  const type = $('connection-type').value, c = state.connections.find(c => c.id === editingConnectionId);
+  if (reset) { $('connection-anonymous').checked = false; $('gitlab-username').value = type === 'gitlab' ? 'oauth2' : type === 'github' ? 'x-access-token' : 'git'; $('gitlab-token').value = ''; if (!c) $('gitlab-url').value = type === 'github' ? 'https://github.com' : ''; }
+  if (type === 'gitlab') $('connection-anonymous').checked = false;
+  const anonymous = $('connection-anonymous').checked;
+  $('source-anonymous-option').hidden = type === 'gitlab'; $('source-auth-fields').hidden = anonymous;
+  $('gitlab-token').required = !anonymous && !(c?.hasToken && c.type === type && c.baseUrl === $('gitlab-url').value.replace(/\/+$/, ''));
+  $('gitlab-url').placeholder = type === 'github' ? 'https://github.com' : 'https://git.example.internal';
+  $('source-url-note').textContent = type === 'github' ? '填写 github.com 或 GitHub Enterprise Server 首页；不填写 api.github.com。' : '填写仓库所在服务首页，可包含路径前缀。仓库地址必须属于该连接。';
+  const permission = type === 'gitlab' ? '需要 read_api、read_repository 和项目读取权限。' : type === 'github' ? '个人访问令牌需允许所选仓库的 Contents 读取；组织可能需要批准或 SSO 授权。' : '私有仓库填写实际 Git 用户名与密码 / Token；添加仓库时验证读取权限。';
+  $('token-note').textContent = anonymous ? '仅访问无需认证的公开仓库。' : `${c?.hasToken ? '留空保留当前凭据。' : ''}${permission}`;
+  $('test-connection').hidden = type === 'git';
+  if (type === 'git') $('connection-result').textContent = '通用 Git 在添加具体仓库时通过实际 Git 握手验证。';
+  else if (reset) $('connection-result').textContent = '';
+}
+function openConnection(id) {
+  const c = state.connections.find(c => c.id === id);
+  editingConnectionId = c?.id || null; $('connection-form').reset(); $('connection-error').textContent = ''; $('connection-result').textContent = '';
+  $('connection-dialog-title').textContent = c ? '编辑代码源连接' : '添加连接';
+  $('connection-name').value = c?.name || ''; $('connection-type').value = c?.type || 'gitlab';
+  $('gitlab-url').value = c?.baseUrl || ''; $('gitlab-username').value = c?.username || 'oauth2'; $('gitlab-ca').value = c?.caPem || ''; $('connection-anonymous').checked = c?.anonymous || false;
+  const bound = Boolean(c && state.repositories.some(r => r.connectionId === c.id));
+  $('connection-type').disabled = bound; $('gitlab-url').readOnly = bound; $('source-identity-note').hidden = !bound;
+  connectionFields(); $('connection-dialog').showModal(); $('connection-name').focus();
+}
+function connectionBody() { const c = state.connections.find(c => c.id === editingConnectionId); return { ...(c ? { id: c.id } : {}), type: $('connection-type').value, name: $('connection-name').value, baseUrl: $('gitlab-url').value, username: $('gitlab-username').value, token: $('gitlab-token').value, anonymous: $('connection-anonymous').checked, caPem: $('gitlab-ca').value, group: c?.group || '' }; }
+async function connectionAction(action, id) {
+  const c = state.connections.find(c => c.id === id); if (!c) return;
+  if (action === 'edit') return openConnection(id);
+  if (!await confirm('移除代码源连接', `移除 ${c.name} 的连接与读取凭据。已下载的快照不会删除。`, '移除连接')) return;
+  await api(`connections/${id}`, { method: 'DELETE', body: {} }); await refresh(); toast('连接已移除');
+}
+function repositoryHint() {
+  const c = state.connections.find(c => c.id === $('repo-connection').value);
+  $('repo-url').placeholder = c ? `${c.baseUrl}/team/service.git` : '请选择代码源连接';
+  $('repo-url-note').textContent = c?.type === 'git' ? '填写完整 HTTP(S) 仓库地址；读取权限将在添加时验证。' : '支持完整仓库地址、owner/repository 或 git@host:path.git；实际使用 HTTP(S) 同步。';
+}
+function openAdd() {
+  if (!state?.connections.length) { navigate('connection'); toast('请先添加代码源连接'); return; }
+  $('add-form').reset(); $('add-error').textContent = '';
+  $('repo-connection').innerHTML = (state.connections.length > 1 ? '<option value="">请选择连接</option>' : '') + state.connections.map(c => `<option value="${c.id}">${escape(c.name)} · ${sourceLabels[c.type]}</option>`).join('');
+  repositoryHint(); $('add-dialog').showModal(); (state.connections.length > 1 ? $('repo-connection') : $('repo-url')).focus();
+}
 async function openDetail(id) {
   detailId = id; const repo = state.repositories.find(r => r.id === id); if (!repo) return;
-  $('detail-name').textContent = repo.name; $('detail-path').textContent = repo.path;
+  $('detail-name').textContent = repo.name; $('detail-path').textContent = repositoryLabel(repo);
   $('branch-select').innerHTML = `<option>${escape(repo.branch)}</option>`; $('detail-dialog').showModal(); renderDetail();
-  try { const result = await api(`branches?projectId=${repo.projectId}`); if (detailId !== id) return; const names = [...new Set([repo.branch, ...result.branches.map(b => b.name)])]; $('branch-select').innerHTML = names.map(name => `<option value="${escape(name)}" ${name === repo.branch ? 'selected' : ''}>${escape(name)}</option>`).join(''); }
+  try { const result = await api(`branches?repoId=${repo.id}`); if (detailId !== id) return; const names = [...new Set([repo.branch, ...result.branches.map(b => b.name)])]; $('branch-select').innerHTML = names.map(name => `<option value="${escape(name)}" ${name === repo.branch ? 'selected' : ''}>${escape(name)}</option>`).join(''); }
   catch (e) { toast(e.message, true); }
 }
 function renderDetail() {
@@ -79,15 +131,24 @@ document.addEventListener('click', event => {
   if (button.dataset.close) $(button.dataset.close).close();
   if (button.dataset.detail) void openDetail(button.dataset.detail);
   if (button.dataset.sync) void syncRepo(button.dataset.sync).catch(e => toast(e.message, true));
+  if (button.dataset.connectionAction) void connectionAction(button.dataset.connectionAction, button.dataset.connectionId).catch(e => toast(e.message, true));
   if (button.dataset.accessAction) void accessTokenAction(button.dataset.accessAction, button.dataset.tokenId).catch(e => toast(e.message, true));
 });
 $('login-form').addEventListener('submit', event => { event.preventDefault(); $('login-error').textContent = ''; void busy($('login-form'), async () => { await api('login', { method: 'POST', body: { password: $('login-password').value } }); await showApp(); }).catch(e => $('login-error').textContent = e.message); });
 $('logout').onclick = () => void api('logout', { method: 'POST', body: {} }).then(showLogin).catch(e => toast(e.message, true));
 $('add-repo').onclick = openAdd; $('empty-add').onclick = openAdd;
 $('sync-all').onclick = () => void syncRepo().catch(e => toast(e.message, true));
-$('connection-form').addEventListener('submit', event => { event.preventDefault(); void busy($('connection-form'), async () => { await api('connection', { method: 'PUT', body: connectionBody() }); $('gitlab-token').value = ''; connectionFilled = false; await refresh(); $('connection-result').textContent = '连接已保存'; toast('GitLab 连接已保存'); navigate('repos'); }).catch(e => { $('connection-result').textContent = ''; toast(e.message, true); }); });
-$('test-connection').onclick = () => void busy($('connection-form'), async () => { $('connection-result').textContent = '正在测试…'; const result = await api('connection/test', { method: 'POST', body: connectionBody() }); $('connection-result').textContent = `连接成功：${result.username}`; }).catch(e => { $('connection-result').textContent = ''; toast(e.message, true); });
-$('add-form').addEventListener('submit', event => { event.preventDefault(); $('add-error').textContent = ''; void busy($('add-form'), async () => { const result = await api('repositories', { method: 'POST', body: { projectPath: $('repo-url').value, branch: $('repo-branch').value.trim() } }); $('add-dialog').close(); await refresh(); toast(result.added.length ? '仓库已添加，开始首次同步' : '此仓库已存在，可在详情中修改分支'); }).catch(e => $('add-error').textContent = e.message); });
+$('create-connection').onclick = () => openConnection(); $('empty-connection').onclick = () => openConnection();
+$('connection-type').onchange = () => connectionFields(true); $('connection-anonymous').onchange = () => connectionFields(); $('gitlab-url').oninput = () => connectionFields();
+$('repo-connection').onchange = repositoryHint;
+$('connection-dialog').addEventListener('close', () => { $('gitlab-token').value = ''; editingConnectionId = null; });
+$('connection-form').addEventListener('submit', event => {
+  event.preventDefault(); $('connection-error').textContent = '';
+  const id = editingConnectionId; const body = connectionBody();
+  void busy($('connection-form'), async () => { await api(id ? `connections/${id}` : 'connections', { method: id ? 'PATCH' : 'POST', body }); $('connection-dialog').close(); await refresh(); toast('代码源连接已保存'); }).catch(e => { $('connection-result').textContent = ''; $('connection-error').textContent = e.message; });
+});
+$('test-connection').onclick = () => void busy($('connection-form'), async () => { $('connection-error').textContent = ''; $('connection-result').textContent = '正在测试…'; const result = await api('connections/test', { method: 'POST', body: connectionBody() }); $('connection-result').textContent = result.verified ? `连接成功：${result.username}` : result.message; }).catch(e => { $('connection-result').textContent = ''; $('connection-error').textContent = e.message; });
+$('add-form').addEventListener('submit', event => { event.preventDefault(); $('add-error').textContent = ''; void busy($('add-form'), async () => { const result = await api('repositories', { method: 'POST', body: { connectionId: $('repo-connection').value, projectPath: $('repo-url').value, branch: $('repo-branch').value.trim() } }); $('add-dialog').close(); await refresh(); toast(result.added.length ? '仓库已添加，开始首次同步' : '此仓库已存在，可在详情中修改分支'); }).catch(e => $('add-error').textContent = e.message); });
 $('branch-form').addEventListener('submit', event => { event.preventDefault(); void api(`repositories/${detailId}`, { method: 'PATCH', body: { branch: $('branch-select').value } }).then(refresh).then(() => toast('分支已保存，将同步新版本')).catch(e => toast(e.message, true)); });
 $('detail-sync').onclick = () => void syncRepo(detailId).catch(e => toast(e.message, true));
 $('detail-map').onclick = () => { const r = state.repositories.find(repo => repo.id === detailId); if (r?.current && r.enabled) window.open(`/map?${new URLSearchParams({ repo: r.id, commit: r.current.commit })}`, '_blank', 'noopener'); };
@@ -96,14 +157,14 @@ $('detail-remove').onclick = async () => { const r = state.repositories.find(r =
 const mcpUrl = `${location.origin}/mcp`; $('mcp-url').value = mcpUrl; $('mcp-config').textContent = JSON.stringify({ mcpServers: { 'repo-harbor': { url: mcpUrl, headers: { Authorization: 'Bearer <AI 读取令牌>' } } } }, null, 2);
 $('copy-mcp-url').onclick = () => void copy(mcpUrl).catch(e => toast(e.message, true));
 function resetTokenSecret() { token = null; $('mcp-token').value = '点击查看令牌'; $('mcp-token').type = 'password'; $('show-token').textContent = '查看'; }
-function scopeNames(item) { return item.repositoryIds.map(id => state.repositories.find(r => r.id === id)?.path || '已移除仓库'); }
+function scopeNames(item) { return item.repositoryIds.map(id => repositoryLabel(state.repositories.find(r => r.id === id))); }
 function renderAccessTokens() {
   const entries = state.accessTokens || [];
   $('access-token-count').textContent = `${entries.length} 个令牌`;
   $('create-access-token').disabled = !state.repositories.length || entries.length >= 64;
   $('access-token-empty').hidden = entries.length > 0;
   $('access-token-empty').textContent = state.repositories.length ? '还没有读取令牌。创建时选择允许访问的仓库，再配置到 AI 客户端。' : '请先在仓库页添加仓库，再创建读取令牌。';
-  const rows = JSON.stringify([entries, state.repositories.map(r => [r.id, r.path, r.enabled])]);
+  const rows = JSON.stringify([entries, state.repositories.map(r => [r.id, r.path, r.enabled, r.source])]);
   if (rows !== lastTokenRows) {
     $('access-token-list').replaceChildren(...entries.map(item => {
       const row = document.createElement('li'); row.className = 'token-row'; row.dataset.tokenId = item.id;
@@ -125,11 +186,11 @@ function renderAccessTokens() {
 function scopeCount() { $('access-token-scope-count').textContent = `已选择 ${tokenScopeSelection.size} 个仓库`; $('access-token-save').disabled = !editingTokenId && !tokenScopeSelection.size; }
 function renderScopeOptions() {
   const q = $('access-token-search').value.trim().toLowerCase();
-  $('access-token-repositories').replaceChildren(...state.repositories.filter(r => r.path.toLowerCase().includes(q) || r.name.toLowerCase().includes(q)).map(repo => {
+  $('access-token-repositories').replaceChildren(...state.repositories.filter(r => repositoryLabel(r).toLowerCase().includes(q) || r.name.toLowerCase().includes(q)).map(repo => {
     const label = document.createElement('label'); label.className = 'token-scope-option';
     const input = document.createElement('input'); input.type = 'checkbox'; input.value = repo.id; input.checked = tokenScopeSelection.has(repo.id);
     input.onchange = () => { input.checked ? tokenScopeSelection.add(repo.id) : tokenScopeSelection.delete(repo.id); scopeCount(); };
-    const text = document.createElement('span'); text.textContent = `${repo.path}${repo.enabled ? '' : '（已暂停）'}`; label.append(input, text); return label;
+    const text = document.createElement('span'); text.textContent = `${repositoryLabel(repo)}${repo.enabled ? '' : '（已暂停）'}`; label.append(input, text); return label;
   })); scopeCount();
 }
 function openAccessToken(item) {

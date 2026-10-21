@@ -22,7 +22,7 @@ test('repository credentials cannot be sent to another origin or URL userinfo', 
 });
 test('persistent state survives reopen and refuses missing encryption key', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'atlas-store-')); process.env.ADMIN_BOOTSTRAP_PASSWORD = 'fixture-admin-password';
-  const a = await new Store(dir).open(); a.state.connection = { token: a.seal('fixture-token') }; await a.save();
+  const a = await new Store(dir).open(); a.state.connections.push({ id: crypto.randomUUID(), type: 'gitlab', name: 'fixture', baseUrl: 'https://gitlab.example.invalid', username: 'oauth2', token: a.seal('fixture-token'), anonymous: false, revision: 1 }); await a.save();
   const b = await new Store(dir).open(); assert.equal(b.connection().token, 'fixture-token');
   const stat = await fs.stat(path.join(dir, 'state.json')); assert.equal(stat.mode & 0o777, 0o600);
   await fs.rename(path.join(dir, 'master.key'), path.join(dir, 'master.key.backup'));

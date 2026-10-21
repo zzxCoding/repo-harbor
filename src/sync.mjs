@@ -1,32 +1,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
-import { sameGitlabRepository, cleanError } from './security.mjs';
+import { cleanError } from './security.mjs';
+import { repositoryUrl } from './sources.mjs';
+import { command, gitRunner } from './git.mjs';
+export { command } from './git.mjs';
 import { DEFAULT_BUILD_TIMEOUT_MINUTES, buildPhases } from './build-progress.mjs';
 
-export async function command(file, args, options = {}) {
-  return await new Promise((resolve, reject) => {
-    const child = spawn(file, args, { cwd: options.cwd, env: options.env || process.env, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
-    let stdout = ''; let stderr = ''; let timedOut = false;
-    const stop = () => {
-      timedOut = true;
-      try { process.kill(process.platform === 'win32' ? child.pid : -child.pid, 'SIGTERM'); } catch {}
-      setTimeout(() => { try { process.kill(process.platform === 'win32' ? child.pid : -child.pid, 'SIGKILL'); } catch {} }, 1500).unref();
-    };
-    const timer = setTimeout(stop, options.timeout || 5 * 60_000);
-    options.signal?.addEventListener('abort', stop, { once: true });
-    child.stdout.on('data', chunk => { stdout = (stdout + chunk.toString()).slice(-2_000_000); });
-    child.stderr.on('data', chunk => { stderr = (stderr + chunk.toString()).slice(-16000); });
-    child.on('error', reject);
-    child.on('close', code => {
-      clearTimeout(timer); options.signal?.removeEventListener('abort', stop);
-      if (timedOut) reject(new Error('同步任务超时或已停止'));
-      else if (code !== 0) reject(new Error(`${file} 退出码 ${code}：${stderr || stdout}`));
-      else resolve(stdout.trim());
-    });
-  });
-}
+
 async function freeze(dir) {
   for (const item of await fs.readdir(dir, { withFileTypes: true })) {
     const file = path.join(dir, item.name);
@@ -41,9 +21,6 @@ export function addEvent(repo, kind, message) {
 export class Synchronizer {
   constructor(store, pool) { this.store = store; this.pool = pool; this.queue = []; this.working = false; this.stopping = false; }
   async start() {
-    const askpass = fileURLToPath(new URL('./askpass.mjs', import.meta.url));
-    // The executable mode is part of the source/image, not a write to the read-only app directory.
-    this.askpass = askpass;
     this.controller = new AbortController();
     for (const repo of this.store.state.repositories) {
       if (!repo.enabled) continue;
@@ -72,7 +49,7 @@ export class Synchronizer {
         if (!repo?.enabled) continue;
         this.runningId = id;
         try { await this.sync(repo); } catch (e) {
-          const connection = this.store.connection();
+          const connection = this.store.connection(repo.connectionId);
           if (repo.status === 'indexing' && repo.build) { repo.build.phase = 'failed'; repo.build.finishedAt = new Date().toISOString(); }
           repo.status = 'error'; repo.stage = '同步失败'; repo.lastError = cleanError(e, [connection?.token], [this.store.dir]);
           addEvent(repo, 'error', repo.lastError);
@@ -91,25 +68,17 @@ export class Synchronizer {
   }
   async phase(repo, status, message) { repo.status = status; repo.stage = message; addEvent(repo, status, message); await this.store.save(); }
   async sync(repo) {
-    const c = this.store.connection();
-    if (!c) throw new Error('请先配置 GitLab 连接');
+    const c = this.store.connection(repo.connectionId);
+    if (!c) throw new Error('仓库所属代码源连接不存在');
     const requestedBranch = repo.branch;
-    const requestedUrl = sameGitlabRepository(repo.remoteUrl, c.baseUrl);
+    const requestedUrl = repositoryUrl(repo.remoteUrl, c);
     if (repo.current) {
       await this.phase(repo, 'restoring', '恢复已发布版本');
       await this.pool.ensure(repo.current, { signal: this.controller.signal });
     }
     const mirror = path.join(this.store.dir, 'mirrors', `${repo.id}.git`);
     const authHome = path.join(this.store.dir, 'git-runtime', repo.id);
-    await fs.mkdir(authHome, { recursive: true, mode: 0o700 });
-    let caPath;
-    if (c.caPem) { caPath = path.join(authHome, 'ca.pem'); await fs.writeFile(caPath, c.caPem, { mode: 0o600 }); }
-    const env = { PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin', HOME: authHome,
-      GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_TERMINAL_PROMPT: '0',
-      GIT_ASKPASS: this.askpass, ATLAS_GIT_USERNAME: c.username, ATLAS_GIT_TOKEN: c.token,
-      ...(caPath ? { GIT_SSL_CAINFO: caPath } : {}),
-    };
-    const git = args => command('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'credential.helper=', '-c', 'protocol.file.allow=never', '-c', 'http.followRedirects=false', ...args], { env, signal: this.controller.signal });
+    const git = await gitRunner(c, authHome, { signal: this.controller.signal });
     await git(['check-ref-format', '--branch', requestedBranch]);
     await this.phase(repo, 'fetching', `获取 ${requestedBranch} 最新代码`);
     try { await fs.access(path.join(mirror, 'HEAD')); } catch {
@@ -136,7 +105,7 @@ export class Synchronizer {
       await fs.mkdir(path.join(mirror, 'info'), { recursive: true });
       await fs.writeFile(path.join(mirror, 'info', 'attributes'), '* -export-ignore -export-subst\n');
       await git(['--git-dir', mirror, 'archive', '--format=tar', `--output=${archive}`, commit]);
-      await command('tar', ['-xf', archive, '-C', path.join(temp, 'source')], { env: { PATH: env.PATH }, signal: this.controller.signal });
+      await command('tar', ['-xf', archive, '-C', path.join(temp, 'source')], { env: { PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin' }, signal: this.controller.signal });
       await fs.unlink(archive); await freeze(path.join(temp, 'source'));
       await fs.writeFile(path.join(temp, 'source.complete'), commit, { mode: 0o444 });
       await fs.mkdir(path.dirname(parent), { recursive: true }); await fs.rename(temp, parent);
@@ -158,7 +127,7 @@ export class Synchronizer {
     repo.build.phase = 'validating';
     const probe = await engine.call('orient', { budget: 'small' });
     if (probe.isError) throw new Error(`新版本地图查询未通过，继续保留旧版本：${probe.content?.find(c => c.type === 'text')?.text || '未知错误'}`);
-    if (!repo.enabled || repo.branch !== requestedBranch || !this.store.state.repositories.includes(repo) || this.store.connection()?.baseUrl !== c.baseUrl) {
+    if (!repo.enabled || repo.branch !== requestedBranch || !this.store.state.repositories.includes(repo) || this.store.connection(repo.connectionId)?.revision !== c.revision) {
       repo.status = 'queued'; repo.stage = '配置已变化，等待重新同步'; repo.reschedule = true;
       addEvent(repo, 'queued', '配置已变化，本轮结果不发布'); return;
     }

@@ -4,7 +4,7 @@
 
 **Self-hosted code maps and MCP access for AI.**
 
-Connect GitLab and add repositories through a web dashboard. RepoHarbor automatically
+Connect GitLab, GitHub, or a generic HTTP(S) Git server through a web dashboard. RepoHarbor automatically
 syncs your code, builds code maps, and lets AI clients find implementations, follow
 calls, and read source code from the same commit.
 
@@ -14,7 +14,7 @@ calls, and read source code from the same commit.
 
 ![Repository dashboard](docs/screenshots/repositories.png)
 
-> Current version: **0.1.3**. Docker deployments target **Linux x86_64 / AMD64**.
+> Current version: **0.2.0**. Docker deployments target **Linux x86_64 / AMD64**.
 > The web interface is currently in **Simplified Chinese**; English translations of
 > relevant UI labels appear below. Building maps requires no LLM, embeddings,
 > Neo4j, or external database. This repository provides source code and packaging
@@ -22,14 +22,14 @@ calls, and read source code from the same commit.
 
 ## Why RepoHarbor
 
-When an AI client searches and opens files through the GitLab API one request at a
+When an AI client searches and opens files through the hosting API one request at a
 time, it repeatedly accesses the remote server and has limited access to call,
 reference, and dependency relationships. RepoHarbor prepares that information on
 your server before the AI needs it:
 
 ```mermaid
 flowchart LR
-    G[GitLab repositories] -->|Scheduled Git fetch| S[Immutable commit snapshots]
+    G[GitLab / GitHub / Generic Git] -->|Scheduled Git fetch| S[Immutable commit snapshots]
     S --> C[Codegraph indexes and symbol relationships]
     C --> P[Validate and publish code maps]
     P --> W[Browser graph and source viewer]
@@ -37,8 +37,9 @@ flowchart LR
     M --> A[AI clients]
 ```
 
-AI queries read locally published snapshots. GitLab API requests are used for
-connection checks, project discovery, and branch listing. Failed updates preserve
+AI queries read locally published snapshots. GitLab and GitHub APIs are used for
+connection checks, project discovery, and branch listing. Generic Git uses the
+standard Git protocol for branch discovery. Failed updates preserve
 the previous published version. Within an AI session, maps and source code stay
 pinned to the same commit.
 
@@ -46,7 +47,8 @@ pinned to the same commit.
 
 | Feature | Behavior |
 | --- | --- |
-| Web configuration | Enter the GitLab URL, token, repository URL, and branch without maintaining a repository configuration file |
+| Web configuration | Choose GitLab, GitHub, or generic Git, then enter repository URLs and branches without maintaining a configuration file |
+| Multiple connections | Up to 32 connections across platforms and servers; each repository uses its own connection and credentials |
 | Automatic sync | Check for updates every 15 minutes by default; skip rebuilding when the commit is unchanged, or sync manually |
 | Code maps | Use Codegraph 3.0.0 to query symbols, calls, references, file dependencies, and related context |
 | Browser viewer | Search files, browse dependencies and symbols within a file, and jump to source lines; assets are served locally |
@@ -57,7 +59,7 @@ pinned to the same commit.
 | Offline installation | Build an AMD64 installation bundle on a connected machine, then upload, verify, load, and start it on your server |
 
 Parsing and graph queries are provided by [Codegraph](https://github.com/lzehrung/codegraph).
-RepoHarbor adds GitLab synchronization, snapshot publishing, web administration,
+RepoHarbor adds Git synchronization across hosting platforms, snapshot publishing, web administration,
 visualization, and remote MCP access with repository permissions. It does not
 implement a separate parsing engine.
 
@@ -66,7 +68,7 @@ implement a separate parsing engine.
 You need a running Docker Engine, Docker Compose v2, and Git.
 **The first source build requires internet access** to download the pinned Node
 base image, Debian packages, and npm dependencies. The running service must be
-able to reach your configured GitLab instance.
+able to reach your configured Git hosting services.
 
 ```bash
 git clone https://github.com/zzxCoding/repo-harbor.git
@@ -74,7 +76,7 @@ cd repo-harbor
 ./scripts/start.sh
 ```
 
-The script builds `repo-harbor:0.1.3-amd64`, generates the initial administrator
+The script builds `repo-harbor:0.2.0-amd64`, generates the initial administrator
 password, starts the container, and waits for its health check.
 Open **`http://your-server:8093`** and sign in with the password printed by the
 script. Replace `your-server` with your server's reachable IP address or hostname.
@@ -102,13 +104,13 @@ image, source code, checksums, and deployment scripts:
 ./scripts/build-offline.sh
 ```
 
-Upload `delivery/repo-harbor-0.1.3-linux-amd64.tar.gz` and its `.sha256` file to your
+Upload `delivery/repo-harbor-0.2.0-linux-amd64.tar.gz` and its `.sha256` file to your
 server, then run:
 
 ```bash
-sha256sum -c repo-harbor-0.1.3-linux-amd64.tar.gz.sha256
-tar -xzf repo-harbor-0.1.3-linux-amd64.tar.gz
-cd repo-harbor-0.1.3-linux-amd64
+sha256sum -c repo-harbor-0.2.0-linux-amd64.tar.gz.sha256
+tar -xzf repo-harbor-0.2.0-linux-amd64.tar.gz
+cd repo-harbor-0.2.0-linux-amd64
 ./deploy.sh
 ```
 
@@ -119,37 +121,50 @@ Simplified Chinese.
 
 ## Web configuration
 
-### 1. Connect GitLab
+### 1. Add a code source connection
 
-Open **GitLab Connection (GitLab 连接)**. Enter your GitLab instance's base URL,
-Git username, and access token. Test the connection, then save it.
+Open **Code Sources → Add Connection (代码源 → 添加连接)**. Give the connection a
+name, choose the platform, and enter its base URL. A single instance can connect
+to multiple GitLab, GitHub, and other Git servers with separately encrypted credentials.
 
-- The token needs **`read_api` and `read_repository`**, and its account must have
-  read access to the selected projects.
-- For a personal access token, the Git username can usually be `oauth2`.
-  Credentials are used for Git over HTTP(S).
-- For a private certificate authority or self-signed certificate, supply the CA
-  certificate in PEM format through the page; TLS verification stays enabled.
-- Internal HTTP, HTTPS, custom ports, and GitLab instances hosted under a URL
-  subpath are supported.
-- This version uses the GitLab REST API for project discovery. A GitLab deploy
-  token cannot replace the required API credentials.
+| Platform | Configuration and permissions |
+| --- | --- |
+| GitLab | Enter the instance's base URL. The token needs `read_api`, `read_repository`, and read access to the selected projects. The Git username usually defaults to `oauth2` |
+| GitHub | Enter `https://github.com`. Use a personal access token with the selected repositories and Contents read access. The Git username defaults to `x-access-token` |
+| GitHub Enterprise Server | Select GitHub and enter the enterprise instance's base URL. RepoHarbor uses its `/api/v3` endpoint automatically; do not enter the API URL |
+| Generic Git | Enter the hosting server's base URL or path prefix. For private repositories, supply the actual Git username and password/token. Read access is checked when adding a specific repository, without a hosting API |
 
-See the [official GitLab token scope documentation](https://docs.gitlab.com/user/profile/personal_access_tokens/).
+For public GitHub or generic Git repositories, select **No authentication
+(无需认证)**. GitLab connections still require a token. GitLab and GitHub support
+connection testing before saving. Generic Git performs an actual Git handshake
+when you add a repository; saving the connection alone does not verify repository access.
+
+Internal HTTP, HTTPS, custom ports, and private CAs are supported. Supply a CA
+certificate in PEM format for enterprise certificates; TLS verification remains
+enabled. GitLab instances hosted under a URL subpath are supported. GitHub
+organizations may require token approval or SSO authorization. This release uses
+personal access tokens and does not provide OAuth login, automatic GitHub App
+token refresh, or SSH key authentication.
+
+See [GitLab token scopes](https://docs.gitlab.com/user/profile/personal_access_tokens/)
+and [GitHub Contents read permissions](https://docs.github.com/en/rest/branches/branches#list-branches).
+The detailed [code source guide](docs/SOURCES.md) is currently in Simplified Chinese.
+
+![Multiple code source connections](docs/screenshots/sources.png)
 
 ### 2. Add a repository and branch
 
-Open **Repositories → Add Repository (仓库 → 添加仓库)** and enter a specific
+Open **Repositories → Add Repository (仓库 → 添加仓库)** and select its code source connection, then enter a specific
 repository URL, for example:
 
 ```text
 https://gitlab.example.internal/team/order-service.git
 ```
 
-`team/order-service` and `git@host:team/order-service.git` are also accepted.
-SSH-style addresses identify the project only: synchronization uses the HTTP(S)
-clone URL returned by GitLab and your access token. SSH keys are not used in this
-version.
+For GitLab and GitHub, `team/order-service` and `git@host:team/order-service.git`
+are also accepted. SSH-style addresses identify the project only; synchronization
+uses HTTP(S), without SSH keys. Generic Git requires a complete HTTP(S) repository
+URL belonging to the selected connection. Each repository uses only that connection's credentials.
 
 Leave the branch blank to use the project's default branch, or enter a target
 branch. Saving starts the first sync and full map build automatically. You can
@@ -194,7 +209,7 @@ only shared libraries.
   Removing and re-adding the same repository path also requires a new grant.
 - Editing permissions, enabling or disabling a token, rotating it, or deleting
   it invalidates that token's sessions. The client must reconnect.
-- The administrator password, GitLab token, and AI read token are separate
+- The administrator password, code source credentials, and AI read token are separate
   credentials. AI clients only need the AI read token.
 
 ## MCP integration
@@ -240,8 +255,9 @@ A recommended query sequence:
 {"name":"get_file","arguments":{"repo":"<repo-id>","file":"src/pricing.ts","offset":1,"limit":80}}
 ```
 
-`repo` accepts the repository ID returned by `list_repos` or the exact GitLab
-project path. It may be omitted only when the token can access exactly one
+Prefer the repository ID returned by `list_repos`; the `source` field identifies
+its connection. An exact repository path is also accepted when unambiguous.
+Identical paths across connections require a repository ID. It may be omitted only when the token can access exactly one
 enabled repository. `get_file.offset` uses **1-based** line numbers.
 Results include repository metadata with `branch`, `commit`, and `indexedAt`.
 Reconnect the session to use a newly published version.
@@ -264,6 +280,12 @@ For compatibility with earlier Code Atlas deployments, the Compose project name
 are retained. The public project name, MCP server name, and image name use
 RepoHarbor. Multiple instances on one host need distinct Compose project names,
 ports, and data volumes; see the operations guide.
+
+When upgrading from 0.1.3 or earlier Code Atlas releases, the single GitLab
+connection is migrated to multiple connections (storage version=3). Repository
+IDs, published maps, the administrator password, and AI token permissions are
+preserved. To roll back to 0.1.3 or earlier, restore a pre-upgrade backup to a new
+volume; switching only the image is insufficient.
 
 The persistent volume stores configuration, password hashes, encrypted
 credentials and their encryption key, Git mirrors, source snapshots, and indexes.
@@ -306,16 +328,16 @@ details to view a newer version as well.
 
 ## Security and limitations
 
-- The current service has one administrator, one GitLab connection, and multiple
+- The current service has one administrator, up to 32 code source connections, and multiple
   repositories. It does not provide team accounts, SSO, or automatic inheritance
-  of each AI user's GitLab permissions. Administrators assign token scopes;
+  of each AI user's hosting-platform permissions. Administrators assign token scopes;
   an instance supports up to 64 AI read tokens.
 - MCP is read-only. `refresh_index`, `artifact_build`, and `query_sqlite` are
   disabled. AI clients cannot commit code, switch branches, or trigger builds
   through this service.
 - Repository scripts and hooks are not executed. Submodules are not initialized,
   and Git LFS file contents are not downloaded.
-- GitLab credentials are encrypted at rest, are not filled back into web forms,
+- Code source credentials are encrypted at rest, are not filled back into web forms,
   and are excluded from source snapshots and the Codegraph reader environment.
   The persistent volume also contains the encryption key, so backups require
   the same protection as credentials and source code.

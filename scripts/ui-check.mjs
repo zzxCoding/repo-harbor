@@ -38,9 +38,10 @@ try {
   await page.getByRole('button', { name: '查看', exact: true }).click();
   await page.waitForFunction(() => document.getElementById('mcp-token').value.length >= 32);
   if ((await page.locator('#mcp-token').inputValue()).length < 32) throw new Error('MCP token missing'); checks.push('Page creates explicitly scoped token and reveals it only with admin login');
-  await page.getByRole('button', { name: 'GitLab 连接', exact: true }).click(); await page.getByRole('button', { name: '测试连接', exact: true }).click();
+  await page.getByRole('button', { name: '代码源', exact: true }).click(); await page.getByRole('button', { name: '编辑连接', exact: true }).first().click(); await page.getByRole('button', { name: '测试连接', exact: true }).click();
   await page.getByText('连接成功：fixture-bot').waitFor(); checks.push('Saved encrypted GitLab credential passes test without plaintext form refill');
   if (await page.locator('#gitlab-token').inputValue()) throw new Error('Stored GitLab token exposed in form');
+  await page.locator('[data-close="connection-dialog"]').click();
   await page.getByRole('button', { name: '管理设置', exact: true }).click(); await page.locator('#interval').fill('7'); await page.getByRole('button', { name: '保存同步间隔' }).click();
   await page.getByText('同步间隔已保存', { exact: true }).waitFor(); checks.push('Schedule setting persists');
   await page.locator('#build-timeout').fill('90'); await page.getByRole('button', { name: '保存建图设置' }).click();
@@ -58,6 +59,6 @@ try {
   if (await page.locator('#gitlab-token').inputValue()) throw new Error('GitLab credential retained after logout');
   checks.push('Logout removes credential fields and repository data from DOM');
   if (errors.length) throw new Error(JSON.stringify(errors));
-  const report = { version: '0.1.3', checks, javascriptErrors: errors, data: 'synthetic repository; long-build display uses simulated counters, backend progress tested against real Codegraph separately', viewport: ['1440x1000', '390x844'] };
+  const report = { version: '0.2.0', checks, javascriptErrors: errors, data: 'synthetic repository; long-build display uses simulated counters, backend progress tested against real Codegraph separately', viewport: ['1440x1000', '390x844'] };
   await fs.writeFile(new URL('ui-check.json', evidence), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report));
 } finally { await browser.close(); }

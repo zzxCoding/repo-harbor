@@ -1,6 +1,6 @@
 {
   "name": "repo-harbor",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -18,7 +18,7 @@
   "overrides": {
     "@hono/node-server": "2.1.4"
   },
-  "description": "Self-hosted code maps and MCP access for AI, with GitLab sync and repository-level permissions.",
+  "description": "Self-hosted code maps and MCP access for AI, with GitLab, GitHub and generic Git sources and repository-level permissions.",
   "license": "MIT",
   "repository": {
     "type": "git",

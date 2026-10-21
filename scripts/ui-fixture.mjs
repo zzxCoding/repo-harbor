@@ -3,6 +3,7 @@ import path from 'node:path';
 import { startService } from '../src/server.mjs';
 import { gitlabFixture } from '../test/fixture.mjs';
 const multiProject = process.env.MULTI_PROJECT === '1'; const fixture = await gitlabFixture({ multiProject });
+const additional = process.env.MULTI_SOURCE === '1' ? [await gitlabFixture({ provider: 'github' }), await gitlabFixture({ provider: 'git' })] : [];
 process.env.ADMIN_BOOTSTRAP_PASSWORD = 'fixture-admin-password';
 const service = await startService({ dataDir: path.join(fixture.root, 'data'), host: '127.0.0.1', port: 0 });
 const baseUrl = `http://127.0.0.1:${service.port}`;
@@ -10,6 +11,6 @@ const login = await fetch(`${baseUrl}/api/login`, { method: 'POST', headers: { '
 const headers = { 'Content-Type': 'application/json', Cookie: login.headers.get('set-cookie').split(';')[0] };
 await fetch(`${baseUrl}/api/connection`, { method: 'PUT', headers, body: JSON.stringify({ baseUrl: fixture.baseUrl, token: fixture.token, username: 'oauth2' }) });
 await fetch(`${baseUrl}/api/repositories`, { method: 'POST', headers, body: JSON.stringify(multiProject ? { projectIds: [7, 8] } : { projectPath: `${fixture.baseUrl}/team/service.git` }) });
-await fs.writeFile('/tmp/code-atlas-ui-info.json', JSON.stringify({ baseUrl, fixtureRoot: fixture.root }));
+await fs.writeFile('/tmp/code-atlas-ui-info.json', JSON.stringify({ baseUrl, fixtureRoot: fixture.root, sources: [fixture, ...additional].map(f => ({ type: f.provider, baseUrl: f.baseUrl, username: f.username, token: f.token })) }));
 console.log(`UI fixture: ${baseUrl}`);
-for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => void Promise.all([service.close(), fixture.close()]).then(() => process.exit(0)));
+for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => void Promise.all([service.close(), ...[fixture, ...additional].map(f => f.close())]).then(() => process.exit(0)));

@@ -44,7 +44,7 @@ export class Engine {
       const lines = pending.split('\n'); pending = lines.pop();
       for (const line of lines) { const update = decodeProgress(line); if (update && acceptingProgress) notify(update); }
     });
-    this.client = new Client({ name: 'repo-harbor-reader', version: '0.1.3' }, { capabilities: {} });
+    this.client = new Client({ name: 'repo-harbor-reader', version: '0.2.0' }, { capabilities: {} });
     this.client.onclose = () => { this.closed = true; };
     const abort = () => void this.close();
     this.options.signal?.addEventListener('abort', abort, { once: true });

@@ -51,3 +51,8 @@ node scripts/access-ui-check.mjs
 - 权限、源码读取和版本固定的改动，需要补充针对相应边界的测试。
 - Codegraph 固定为 3.0.0；升级时验证原生符号图、MCP schema 和查看数据导出。
 - 保留 MIT 和上游依赖声明。提交贡献代表同意按项目 MIT 许可证分发该贡献。
+
+
+多代码源页面验证：先停止上一个 fixture，再执行 `MULTI_SOURCE=1 node scripts/ui-fixture.mjs`，
+在另一终端运行 `node scripts/sources-ui-check.mjs`。该检查通过页面新增 GitHub 和通用 Git
+连接、添加同路径仓库、验证真实 MCP 范围，并检查手机布局和退出登录清理。
