@@ -59,6 +59,6 @@ try {
   if (await page.locator('#gitlab-token').inputValue()) throw new Error('GitLab credential retained after logout');
   checks.push('Logout removes credential fields and repository data from DOM');
   if (errors.length) throw new Error(JSON.stringify(errors));
-  const report = { version: '0.2.1', checks, javascriptErrors: errors, data: 'synthetic repository; long-build display uses simulated counters, backend progress tested against real Codegraph separately', viewport: ['1440x1000', '390x844'] };
+  const report = { version: '0.2.2', checks, javascriptErrors: errors, data: 'synthetic repository; long-build display uses simulated counters, backend progress tested against real Codegraph separately', viewport: ['1440x1000', '390x844'] };
   await fs.writeFile(new URL('ui-check.json', evidence), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report));
 } finally { await browser.close(); }

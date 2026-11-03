@@ -1,11 +1,11 @@
 FROM node:24-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20
-ARG APP_VERSION=0.2.1
+ARG APP_VERSION=0.2.2
 LABEL org.opencontainers.image.title="RepoHarbor" \
       org.opencontainers.image.version="${APP_VERSION}" \
       org.opencontainers.image.source="https://github.com/zzxCoding/repo-harbor" \
       org.opencontainers.image.licenses="MIT" \
       io.code-atlas.codegraph="3.0.0"
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates tar \
+RUN apt-get update && apt-get install -y --no-install-recommends git ripgrep ca-certificates tar \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json ./

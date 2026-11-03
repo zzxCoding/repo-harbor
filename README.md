@@ -13,7 +13,7 @@
 
 ![仓库控制台](docs/screenshots/repositories.png)
 
-> 当前版本 **0.2.1**，支持 **Linux x86_64 / AMD64** Docker 部署，页面支持简体中文与 English 即时切换。
+> 当前版本 **0.2.2**，支持 **Linux x86_64 / AMD64** Docker 部署，页面支持简体中文与 English 即时切换。
 > 建立地图不需要 LLM、embedding、Neo4j 或其他外部数据库。
 > GitHub 仓库提供源码和打包脚本；下面的步骤会在本机构建镜像。
 
@@ -44,7 +44,7 @@ flowchart LR
 | 自动同步 | 默认每 15 分钟检查更新；commit 未变化时跳过建图，也可立即同步 |
 | 完整代码地图 | 基于 Codegraph 3.0.0，提供符号、调用、引用、文件依赖等查询 |
 | 浏览器查看 | 文件搜索、依赖图、文件内符号关系、源码行跳转，资源随镜像离线提供 |
-| 只读 MCP | Streamable HTTP `/mcp`，19 个工具，查询地图并分页读取源码 |
+| 只读 MCP | Streamable HTTP `/mcp`，22 个工具，支持批量 grep、文件筛选、源码读取和图查询 |
 | 仓库授权 | 每个 AI 读取令牌明确选择仓库；仓库列表、查询和读源码均执行后端权限检查 |
 | 版本一致 | 会话第一次使用某个仓库时固定发布 commit；重新连接读取新版本 |
 | 单容器部署 | Node.js + Git + Codegraph，一个持久化数据卷，无需单独模型或数据库 |
@@ -66,7 +66,7 @@ cd repo-harbor
 ./scripts/start.sh
 ```
 
-脚本构建 `repo-harbor:0.2.1-amd64`、生成首次管理密码、启动容器并等待健康检查。
+脚本构建 `repo-harbor:0.2.2-amd64`、生成首次管理密码、启动容器并等待健康检查。
 打开 **`http://服务器IP:8093`**，使用命令输出中的管理密码登录。
 密码也保存在部署目录 `.env`，文件权限为 `0600`。
 
@@ -88,12 +88,12 @@ PORT=18093 BIND_ADDRESS=127.0.0.1 ./scripts/start.sh
 ./scripts/build-offline.sh
 ```
 
-将生成的 `delivery/repo-harbor-0.2.1-linux-amd64.tar.gz` 和对应 `.sha256` 上传服务器：
+将生成的 `delivery/repo-harbor-0.2.2-linux-amd64.tar.gz` 和对应 `.sha256` 上传服务器：
 
 ```bash
-sha256sum -c repo-harbor-0.2.1-linux-amd64.tar.gz.sha256
-tar -xzf repo-harbor-0.2.1-linux-amd64.tar.gz
-cd repo-harbor-0.2.1-linux-amd64
+sha256sum -c repo-harbor-0.2.2-linux-amd64.tar.gz.sha256
+tar -xzf repo-harbor-0.2.2-linux-amd64.tar.gz
+cd repo-harbor-0.2.2-linux-amd64
 ./deploy.sh
 ```
 
@@ -206,9 +206,9 @@ SSH 形式只用于识别项目，实际使用 HTTP(S) 地址同步，不使用 
 推荐的查询顺序：
 
 1. `list_repos`：选择获准仓库，记录发布 commit。
-2. `search` / `workspace_symbols`：用代码关键词或符号名定位实现。
+2. 批量查找用 `find_files` / `grep` 一次筛文件、搜多个关键词；定位符号用 `search` / `workspace_symbols`。
 3. `calls` / `refs` / `file_deps`：追踪调用、引用或文件依赖。
-4. `get_symbol` / `get_file`：读真实源码，再给出结论与文件行号。
+4. `get_files`：一次读取多个已知文件片段；单文件也可用 `get_file`，再给出结论与文件行号。
 
 ```json
 {"name":"list_repos","arguments":{}}
@@ -221,6 +221,16 @@ SSH 形式只用于识别项目，实际使用 HTTP(S) 地址同步，不使用 
 仓库仅一个时才能省略。`get_file.offset` 从 **1** 开始。
 结果附带 `repository/branch/commit/indexedAt` 元数据，重新连接会话可读取新发布版本。
 全部工具和限制见 [MCP 说明](docs/MCP.md)。
+
+批量分析示例：
+
+```json
+{"name":"grep","arguments":{"repo":"<仓库id>","patterns":["PAYMENT_FAILED","rollback"],"include":["**/*.java","**/*.xml"],"exclude":["**/*Test.java"],"context":2}}
+{"name":"get_files","arguments":{"repo":"<仓库id>","files":[{"file":"src/PaymentService.java","offset":80,"limit":100},{"file":"src/PaymentMapper.xml","offset":1,"limit":80}]}}
+```
+
+升级后刷新客户端工具清单或重新连接。批量工具返回截断标记和续读位置，AI 应检查
+`truncated`、`nextOffset`、`nextIndex`，不要把部分结果当作已检索完整仓库。
 
 ## 日常管理
 

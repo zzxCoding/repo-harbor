@@ -4,11 +4,14 @@ RepoHarbor 在 `/mcp` 提供 Streamable HTTP，使用
 `Authorization: Bearer <AI 读取令牌>`。不支持仅有旧式 SSE transport 的客户端。
 端口、TLS 和反向代理与管理页面共用。
 
-## 19 个只读工具
+## 22 个只读工具
 
 | 工具 | 用途 |
 | --- | --- |
 | `list_repos` | 列出当前令牌获准且启用的仓库、发布版本及会话固定版本 |
+| `find_files` | 按目录、包含/排除 glob 批量筛选文件路径 |
+| `grep` | 用 ripgrep 一次搜索多个关键词或正则，返回匹配行、上下文或文件清单 |
+| `get_files` | 一次读取最多 20 个文件/行号范围，返回精简源码和逐项错误 |
 | `search` | 确定性排序的文件、符号、代码片段及图上下文检索 |
 | `workspace_symbols` | 按符号身份、名称和过滤条件定位符号 |
 | `orient` | 获取仓库方向性上下文 |
@@ -28,7 +31,7 @@ RepoHarbor 在 `/mcp` 提供 Streamable HTTP，使用
 | `impact` | 上游提供的 Git 范围影响上下文，受下述快照限制 |
 | `review` | 上游提供的 Git 范围审查上下文，受下述快照限制 |
 
-除 `list_repos` 外，工具 schema 来自固定版本的 Codegraph，再增加 `repo` 参数。
+`find_files`、`grep`、`get_files` 由 RepoHarbor 提供；其余地图/源码工具的 schema 来自固定版本的 Codegraph，再增加 `repo` 参数。
 请以客户端实际 `tools/list` 返回的参数为准。源码快照不包含 `.git`，因此不要把
 `impact` / `review` 当作本服务的跨 commit diff 接口；依赖 Git 历史的参数不保证可用，
 MR / PR、diff 和未发布提交应继续使用相应托管平台。这里也不提供通过 `ref`、`branch` 参数任意
@@ -54,6 +57,51 @@ MR / PR、diff 和未发布提交应继续使用相应托管平台。这里也�
 可以给 AI 加入这样的使用约束：先列仓库和确认版本，用代码词定位，再追踪关系、读取
 源码；区分代码观察和推断，回答中提供文件、行号和 commit。关系未被提取不代表业务
 运行中没有该关系，尤其注意反射、动态派发和框架配置。
+
+## 批量分析：先过滤，再一次取回需要的证据
+
+批量排查优先使用 `grep` 和 `get_files`。原有 `search` 是排序后的代码图检索，
+适合定位符号；全文逐行匹配、错误码、XML/SQL 配置检索则使用 `grep`，不依赖图解析是否覆盖该文件。
+这些操作直接处理服务器上的固定提交，不回 GitLab/GitHub 获取文件，也不需要模型 API。
+
+```json
+{"name":"find_files","arguments":{"repo":"<仓库id>","include":["**/*Service.java","**/*Mapper.xml"],"exclude":["**/target/**"]}}
+{"name":"grep","arguments":{"repo":"<仓库id>","patterns":["PAYMENT_FAILED","retryCount","rollback"],"include":["**/*.java","**/*.xml"],"exclude":["**/*Test.java"],"context":2}}
+{"name":"get_files","arguments":{"repo":"<仓库id>","files":[{"file":"src/PaymentService.java","offset":80,"limit":100},{"file":"src/PaymentMapper.xml","offset":1,"limit":80}]}}
+```
+
+- `patterns` 最多 32 项，按 **OR** 匹配，默认字面量；`regex:true` 使用 Rust 正则语法，
+  `caseSensitive:false` 忽略大小写。不同查询词需不同筛选条件时分别调用。
+- `path` 限定仓库内的目录；`include` / `exclude` 接受 glob，包含模式按 OR，排除优先。
+  `output:"files"` 只返回命中文件，适合下一步批量读取。不会执行用户提供的 shell 命令。
+- 默认尊重仓库忽略规则、不扫描隐藏文件；可用 `includeIgnored:true`、`hidden:true` 显式扩大范围。
+  搜索始终排除 Git 元数据、常见凭据/密钥文件，不跟随符号链接；文本搜索跳过二进制和大于 4 MiB 的文件。
+  这是有范围约束的检索，不应称为无条件搜遍所有文件。批量读取沿用单文件读取的敏感值隐藏和路径保护。
+- `grep.context` 为 0–5，默认 2。返回每行的 `file`、`line`、`text`、`isMatch`；相邻上下文不重复。
+  `find_files` / `grep` 默认最多 200 条、80 KB，最高 2000 条、200 KB；grep 条数包含上下文行。
+  `offset` 从 **0** 开始，达到条数或字节预算时按原参数和 `nextOffset` 继续。
+  输出按路径/行号排序，同一会话的固定提交下分页稳定。
+- 搜索单次最多 15 秒，rg 输出扫描上限 32 MiB。达到这些限制会显式返回 `truncated:true` 和 `reason`，
+  无 `nextOffset` 时应缩小目录/文件范围。超长源码行标记 `lineTruncated:true`，可改用 `get_file` 精读，
+  不要把该行片段当作完整内容。
+- `get_files` 中每项的 `offset` 从 **1** 开始，默认读 200 行、最多 2000 行；每项最多读取 20 KB 原文，
+  总结果默认 100 KB、最多 200 KB。内容只返回一份带行号的 `content`，保留输入顺序；单项失败带 `isError`。
+  顶层 `nextIndex` 表示尚未返回的输入项，下次传入 `files.slice(nextIndex)`；单项 `nextOffset` 表示该文件需续读。
+  字节预算按结果条目计算，不含少量 JSON 外壳与公共仓库元数据。
+
+可将以下说明加入调用方提示词：
+
+> 批量查找优先用 find_files/grep 一次提交多个关键词和文件过滤条件；已知多个路径时使用 get_files，
+> 避免逐个 search、逐个 get_file。需要调用关系才使用 calls/refs/file_deps。
+> 检查 truncated、nextOffset、nextIndex 和每项错误；未取全或被排除的范围不能当作“没有相关代码”。
+> 引用返回的文件、行号与 commit，区分真实源码和推断。
+
+升级后重新连接 MCP 或刷新工具清单，客户端才能发现新工具。服务端 instructions 也包含上述批量优先指引，
+但客户端是否遵循仍取决于其模型和工具调度方式。
+
+本机基准可运行 `node scripts/batch-benchmark.mjs`，比较固定合成仓库上的单次工具调用、四路并发、
+批量工具和本地 rg + 文件读取，记录请求数、响应字节数和时间，并校验读取的源码一致。
+它不包含模型推理和内网请求延迟，不能直接当作生产分析耗时或答案质量的提升比例。
 
 ## 令牌权限
 

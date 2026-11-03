@@ -21,6 +21,9 @@ Codegraph's own third-party notices under `/app/node_modules`. The pinned
 Node/Debian base image retains its component notices. The application license
 and this notice are also copied into `/app`.
 
+Bulk text search uses Debian's `ripgrep` package installed in the image. Its
+package copyright and license notices remain under `/usr/share/doc/ripgrep`.
+
 The graph viewer serves Codegraph's bundled Graphology, Sigma.js and ForceAtlas2
 assets locally from `/app/node_modules/@lzehrung/codegraph/src/viewer/vendor`.
 Their `LICENSE.graphology.txt`, `LICENSE.sigma.txt` and

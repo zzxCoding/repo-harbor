@@ -4,7 +4,7 @@
 
 ## 本地运行
 
-需要 Node.js 24+、Git。安装依赖需要访问 npm，运行时不需要模型服务。
+需要 Node.js 24+、Git 和 ripgrep（`rg`）。安装依赖需要访问 npm，运行时不需要模型服务。
 
 ```bash
 npm ci

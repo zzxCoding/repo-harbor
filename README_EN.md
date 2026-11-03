@@ -14,7 +14,7 @@ calls, and read source code from the same commit.
 
 ![Repository dashboard](docs/screenshots/repositories-en.png)
 
-> Current version: **0.2.1**. Docker deployments target **Linux x86_64 / AMD64**.
+> Current version: **0.2.2**. Docker deployments target **Linux x86_64 / AMD64**.
 > The web interface supports **English and Simplified Chinese**, with instant language switching.
 > Building maps requires no LLM, embeddings,
 > Neo4j, or external database. This repository provides source code and packaging
@@ -52,7 +52,7 @@ pinned to the same commit.
 | Automatic sync | Check for updates every 15 minutes by default; skip rebuilding when the commit is unchanged, or sync manually |
 | Code maps | Use Codegraph 3.0.0 to query symbols, calls, references, file dependencies, and related context |
 | Browser viewer | Search files, browse dependencies and symbols within a file, and jump to source lines; assets are served locally |
-| Read-only MCP | Streamable HTTP at `/mcp`, with 19 tools for map queries and paginated source reading |
+| Read-only MCP | Streamable HTTP at `/mcp`, with 22 tools for bulk grep, file filtering, source reads and graph queries |
 | Repository permissions | Give each AI token an explicit repository list; enforce permissions on repository listing, queries, and source access |
 | Consistent versions | Pin a repository to its published commit on first use in a session; reconnect for newer versions |
 | Single-container deployment | Node.js, Git, and Codegraph with one persistent volume; no separate model service or database |
@@ -76,7 +76,7 @@ cd repo-harbor
 ./scripts/start.sh
 ```
 
-The script builds `repo-harbor:0.2.1-amd64`, generates the initial administrator
+The script builds `repo-harbor:0.2.2-amd64`, generates the initial administrator
 password, starts the container, and waits for its health check.
 Open **`http://your-server:8093`** and sign in with the password printed by the
 script. Replace `your-server` with your server's reachable IP address or hostname.
@@ -104,13 +104,13 @@ image, source code, checksums, and deployment scripts:
 ./scripts/build-offline.sh
 ```
 
-Upload `delivery/repo-harbor-0.2.1-linux-amd64.tar.gz` and its `.sha256` file to your
+Upload `delivery/repo-harbor-0.2.2-linux-amd64.tar.gz` and its `.sha256` file to your
 server, then run:
 
 ```bash
-sha256sum -c repo-harbor-0.2.1-linux-amd64.tar.gz.sha256
-tar -xzf repo-harbor-0.2.1-linux-amd64.tar.gz
-cd repo-harbor-0.2.1-linux-amd64
+sha256sum -c repo-harbor-0.2.2-linux-amd64.tar.gz.sha256
+tar -xzf repo-harbor-0.2.2-linux-amd64.tar.gz
+cd repo-harbor-0.2.2-linux-amd64
 ./deploy.sh
 ```
 
@@ -248,11 +248,11 @@ generated for the selected token on the AI Integration page.
 A recommended query sequence:
 
 1. `list_repos`: choose an authorized repository and note its published commit.
-2. `search` / `workspace_symbols`: locate implementations using code keywords or
-   symbol names.
+2. `find_files` / `grep`: filter files and search multiple patterns in one call;
+   use `search` / `workspace_symbols` for symbol lookup.
 3. `calls` / `refs` / `file_deps`: follow calls, references, or file dependencies.
-4. `get_symbol` / `get_file`: read the actual source before drawing conclusions;
-   cite file paths and line numbers.
+4. `get_files`: read multiple known source ranges in one call, or `get_file` for
+   a single file; cite file paths and line numbers before drawing conclusions.
 
 ```json
 {"name":"list_repos","arguments":{}}
@@ -268,6 +268,36 @@ Results include repository metadata with `branch`, `commit`, and `indexedAt`.
 Reconnect the session to use a newly published version.
 The complete [MCP tool reference and limitations](docs/MCP.md) are currently in
 Simplified Chinese.
+
+For bulk investigation:
+
+```json
+{"name":"grep","arguments":{"repo":"<repo-id>","patterns":["PAYMENT_FAILED","rollback"],"include":["**/*.java","**/*.xml"],"exclude":["**/*Test.java"],"context":2}}
+{"name":"get_files","arguments":{"repo":"<repo-id>","files":[{"file":"src/PaymentService.java","offset":80,"limit":100},{"file":"src/PaymentMapper.xml","offset":1,"limit":80}]}}
+```
+
+`grep` runs ripgrep against the pinned local snapshot. Up to 32 patterns are ORed;
+literal matching is the default, with optional Rust regex and case-insensitive
+matching. Use `output:"files"` to return only matching paths. Directory and glob
+filters reduce irrelevant results; no arbitrary shell execution is exposed.
+Ignore rules and hidden-file filtering apply by default. Symlinks, common credential
+and key files are excluded; text searches skip binary files and files over 4 MiB.
+
+`get_files` accepts up to 20 files/ranges and returns one copy of line-numbered
+source, preserving input order and per-file errors. Search defaults to 200 rows
+(including context) and 80 KB; batch reads default to 100 KB. Both cap result items
+at 200 KB, excluding envelope metadata. Read `truncated`, `nextOffset`, `nextIndex`,
+and per-file errors before assuming completeness. Search offsets start at zero;
+file line offsets start at one. Resume omitted batch items with `files.slice(nextIndex)`.
+If search hits its 15-second or 32 MiB scan-output limit, narrow the scope;
+long lines are explicitly marked `lineTruncated` and require a targeted file read.
+
+Reconnect MCP or refresh the client tool list after upgrading. Server instructions
+recommend bulk tools, but client model/tool scheduling still controls how they are used.
+Run `node scripts/batch-benchmark.mjs` for a local fixed-snapshot comparison of
+single calls, concurrent calls, bulk tools, and local rg plus file reads. It verifies
+source equality and reports calls, bytes, and timing; model inference and network
+latency are excluded, so the results are not production end-to-end speed claims.
 
 ## Operations
 

@@ -116,6 +116,6 @@ try {
   await blockedPage.getByRole('button', { name: 'Sign in', exact: true }).waitFor(); await blockedPage.locator('#login-language').selectOption('zh-CN'); await blockedPage.getByRole('button', { name: '登录', exact: true }).waitFor();
   checks.push('Blocked browser storage falls back safely and still permits in-memory language selection');
   assert.deepEqual(errors, []); assert.deepEqual(externalRequests, []);
-  const report = { version: '0.2.1', checks, javascriptErrors: errors, externalRequests, viewport: ['1440x1000', '390x844'], data: 'synthetic Git HTTP repository, native Codegraph, real browser forms and persisted preferences' };
+  const report = { version: '0.2.2', checks, javascriptErrors: errors, externalRequests, viewport: ['1440x1000', '390x844'], data: 'synthetic Git HTTP repository, native Codegraph, real browser forms and persisted preferences' };
   await fs.writeFile(new URL('i18n-ui-check.json', evidence), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report));
 } finally { await browser.close(); await service.close(); await fixture.close(); }

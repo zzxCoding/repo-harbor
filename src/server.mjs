@@ -47,7 +47,7 @@ export async function startService(options = {}) {
     response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'");
     try {
       const url = new URL(request.url, 'http://service.local'); const route = url.pathname; const method = request.method;
-      if (route === '/healthz' && method === 'GET') return json(response, 200, { status: stopping ? 'stopping' : 'ok', version: '0.2.1' });
+      if (route === '/healthz' && method === 'GET') return json(response, 200, { status: stopping ? 'stopping' : 'ok', version: '0.2.2' });
       // Browser requests must originate from the same visible host, including behind a Host-preserving TLS proxy.
       if (request.headers.origin) {
         let origin;

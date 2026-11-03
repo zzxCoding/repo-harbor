@@ -76,6 +76,6 @@ try {
   assert.equal(await page.locator('#connection-list').textContent(), ''); assert.equal(await page.locator('#gitlab-token').inputValue(), ''); assert.equal(await page.locator('#repo-connection option').count(), 0);
   checks.push('Logout clears connection names, credentials and source choices from the DOM');
   assert.deepEqual(errors, []);
-  const report = { version: '0.2.1', checks, javascriptErrors: errors, data: 'three synthetic Git HTTP hosting fixtures, native Codegraph maps, real scoped MCP' };
+  const report = { version: '0.2.2', checks, javascriptErrors: errors, data: 'three synthetic Git HTTP hosting fixtures, native Codegraph maps, real scoped MCP' };
   await fs.writeFile(new URL('sources-ui-check.json', evidence), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report));
 } finally { await mcp?.close(); await browser.close(); }
